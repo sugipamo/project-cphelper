@@ -1,0 +1,39 @@
+services:
+  python:
+    image: python:3.10-slim
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    tty: true
+    volumes:
+      - ./:/workspace
+    working_dir: /workspace
+    restart: always
+
+  pypy:
+    image: pypy:3.10-slim
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    tty: true
+    volumes:
+      - ./:/workspace
+    working_dir: /workspace
+    restart: always
+
+  rust:
+    image: rust:1.70
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    tty: true
+    volumes:
+      - ./:/workspace
+    working_dir: /workspace
+    restart: always

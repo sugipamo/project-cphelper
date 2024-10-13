@@ -2,6 +2,6 @@ contest_src/*
 !contest_src/template
 !contest_src/template/*
 !contest_src/Cargo.toml
-**/__pycache__/** */
+**/__pycache__/
 contest_resource/*
 .temp

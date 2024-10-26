@@ -101,9 +101,6 @@ class Contest:
     
     def open_task(self, *args):
         url = f"https://atcoder.jp/contests/{self.__contest_name}/tasks/{self.__contest_name}_{self.__taskname}"
-        if not (self.contest_resource_path / "test").exists():
-            self.contest_resource_path.mkdir(parents=True, exist_ok=True)
-            subprocess.call(f"cd {self.contest_resource_path}\noj download {url}", shell=True)
         webbrowser.open(url)
         if not self.source_path.exists():
             self.source_path.parent.mkdir(parents=True, exist_ok=True)
@@ -119,6 +116,10 @@ class Contest:
         if self.__interpreter == "rust":
             self.__change_cargoyaml()
                 
+        if not (self.contest_resource_path / "test").exists():
+            self.contest_resource_path.mkdir(parents=True, exist_ok=True)
+            subprocess.call(f"cd {self.contest_resource_path}\noj download {url}", shell=True)
+            
         if "ahc" in self.__contest_name:
             # gitinit
             if not (self.source_path.parent / ".git").exists():

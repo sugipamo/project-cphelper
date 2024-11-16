@@ -291,7 +291,8 @@ class Contest:
         url = f"https://atcoder.jp/contests/{self.__contest_name}/tasks/{self.__contest_name}_{self.__taskname}"
         
         command = f'oj submit -y -l {LANGUAGE_CODE[self.__interpreter]} {url} {self.source_path}'
-        subprocess.call(command, shell=True)
+        with open('/dev/null', 'w') as devnull:
+            subprocess.Popen(command, shell=True, stdout=devnull, stderr=devnull)
 
     def ahcsubmit(self):
         if not self.source_path.exists():
@@ -325,7 +326,8 @@ class Contest:
         url = f"https://atcoder.jp/contests/{self.__contest_name}/tasks/{self.__contest_name}_{self.__taskname}"
         
         command = f'oj submit -y -l {LANGUAGE_CODE[self.__interpreter]} {url} {choicepath}'
-        subprocess.call(command, shell=True)
+        with open('/dev/null', 'w') as devnull:
+            subprocess.Popen(command, shell=True, stdout=devnull, stderr=devnull)
         
         
 def open_task(*args):

@@ -1,6 +1,6 @@
 [[bin]]
-name = "abc376_b"
-path = "abc376/b.rs"
+name = "abc379_e"
+path = "abc379/e.rs"
 
 [package]
 name = "ojt"

@@ -1,7 +1,6 @@
-contest_src/*
-!contest_src/template
-!contest_src/template/*
-!contest_src/Cargo.toml
 **/__pycache__/
-contest_resource/*
+contest/target
+contest/**
+!contest/Cargo.toml
+!contest/template
 .temp

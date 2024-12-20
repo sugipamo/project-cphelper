@@ -11,9 +11,9 @@ import asyncio
 
 
 RESOURCEDIR = "src"
-CONTEST_SOURCECODEDIR = "contest_src"
+CONTEST_SOURCECODEDIR = "contest"
 CONTEST_TEMPLATEDIR = "template"
-CONTEST_RESOURCE = "contest_resource"
+CONTEST_RESOURCE = "contest"
 
 PALLALEL = 10
 TIMEOUT = "timeout 5s"

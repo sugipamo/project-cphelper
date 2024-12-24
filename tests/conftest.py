@@ -1,6 +1,7 @@
 import pytest
 from pathlib import Path
 import os
+import asyncio
 
 @pytest.fixture
 def workspace(tmp_path):
@@ -30,9 +31,17 @@ def mock_subprocess(monkeypatch):
             else:
                 self.commands.append(' '.join(command))
             return type('obj', (object,), {'returncode': 0})()
+
+        async def create_subprocess_shell(self, command, *args, **kwargs):
+            self.commands.append(command)
+            class MockProcess:
+                async def communicate(self, input_data=None):
+                    return b'test output\n', b''
+            return MockProcess()
     
     mock = MockSubprocess()
     monkeypatch.setattr('subprocess.run', mock.run)
+    monkeypatch.setattr('asyncio.create_subprocess_shell', mock.create_subprocess_shell)
     return mock
 
 @pytest.fixture

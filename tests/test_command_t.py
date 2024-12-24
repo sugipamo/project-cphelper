@@ -13,13 +13,21 @@ class TestCommandT:
         problem_dir = workspace / "contest" / "abc123" / "a"
         problem_dir.mkdir(parents=True)
         with open(problem_dir / "a.py", "w") as f:
-            f.write("# Test solution")
-        
+            f.write("print('test output')")
+
+        # テストケースディレクトリを作成
+        test_dir = mock_config.get_test_dir('abc123', 'a')
+        test_dir.mkdir(parents=True)
+        with open(test_dir / "sample-1.in", "w") as f:
+            f.write("test input")
+        with open(test_dir / "sample-1.out", "w") as f:
+            f.write("test output")
+
         handle_command('abc123', 't', ['a'])
-        
-        # ojコマンドが実行されたことを確認
-        expected_cmd = "oj test"
-        assert any(expected_cmd in cmd for cmd in mock_subprocess.commands), "Test command should be executed"
+
+        # Dockerコマンドが実行されたことを確認
+        docker_cmd = "docker run"
+        assert any(docker_cmd in cmd for cmd in mock_subprocess.commands), "Docker command should be executed"
 
     def test_rust_test(self, workspace, mock_subprocess, mock_config):
         """
@@ -31,12 +39,21 @@ class TestCommandT:
         problem_dir.mkdir(parents=True)
         with open(problem_dir / "a.rs", "w") as f:
             f.write("// Test solution")
-        
+
+        # テストケースディレクトリを作成
+        test_dir = mock_config.get_test_dir('abc123', 'a')
+        test_dir.mkdir(parents=True)
+        with open(test_dir / "sample-1.in", "w") as f:
+            f.write("test input")
+        with open(test_dir / "sample-1.out", "w") as f:
+            f.write("test output")
+
         handle_command('abc123', 't', ['a', '--rust'])
-        
-        # cargoコマンドとojコマンドが実行されたことを確認
+
+        # cargoコマンドとDockerコマンドが実行されたことを確認
         assert any("cargo build" in cmd for cmd in mock_subprocess.commands), "Cargo build should be executed"
-        assert any("oj test" in cmd for cmd in mock_subprocess.commands), "Test command should be executed"
+        docker_cmd = "docker run"
+        assert any(docker_cmd in cmd for cmd in mock_subprocess.commands), "Docker command should be executed"
 
     def test_missing_source_file(self, workspace, mock_subprocess, mock_config):
         """

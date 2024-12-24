@@ -114,14 +114,56 @@ def test_solution(contest_id: str, problem_id: str, use_rust: bool = False):
     # ojコマンドをホストで実行し、実行コマンドとしてDockerを使用
     test_cmd = f'{docker_base} {cmd}'
     try:
-        subprocess.run(
-            f'oj test -c "{test_cmd}" -d test -j {config.PARALLEL} --silent',
-            shell=True,
-            check=True,
-            cwd=problem_dir
-        )
-        return True
-    except subprocess.CalledProcessError:
+        # テストケースファイルの収集
+        test_files = list(Path(test_dir).glob("*.in"))
+        if not test_files:
+            print("テストケースが見つかりません")
+            return False
+
+        print(f"Running {len(test_files)} test cases...")
+
+        # 各テストケースを非同期で実行
+        import asyncio
+        
+        async def run_test(test_file: Path):
+            in_file = test_file
+            out_file = test_file.with_suffix(".out")
+            
+            # 同期的にファイルを読み込み
+            with open(in_file, "r") as f:
+                input_data = f.read()
+            with open(out_file, "r") as f:
+                expected = f.read()
+            
+            # テスト実行
+            proc = await asyncio.create_subprocess_shell(
+                test_cmd,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await proc.communicate(input_data.encode())
+            actual = stdout.decode().strip()
+            
+            if actual.strip() != expected.strip():
+                print(f"Failed test: {test_file.name}")
+                print(f"Expected:\n{expected.strip()}")
+                print(f"Got:\n{actual}")
+                return False
+            return True
+
+        # 並列実行
+        async def run_all_tests():
+            tasks = [run_test(tf) for tf in test_files]
+            results = await asyncio.gather(*tasks)
+            return all(results)
+            
+        success = asyncio.run(run_all_tests())
+        if success:
+            print("All tests passed!")
+        return success
+
+    except Exception as e:
         return False
 
 def generate_testcases(contest_id: str, problem_id: str):

@@ -180,3 +180,49 @@ class TestCommandO:
         # コマンド実行確認
         expected_url = "https://atcoder.jp/contests/abc123/tasks/abc123_a"
         assert any(expected_url in cmd for cmd in mock_subprocess.commands), "URL should be in commands" 
+
+    def test_missing_template(self, workspace, mock_subprocess, mock_config, mock_webbrowser):
+        """
+        テンプレートファイルが存在しない場合のテスト
+        """
+        os.chdir(workspace)
+        # テンプレートファイルを削除
+        os.remove(workspace / "template" / "main.py")
+        handle_command('abc123', 'o', ['a'])
+        
+        # ディレクトリは作成されるが、空のファイルが作成されることを確認
+        problem_dir = workspace / "contest" / "abc123" / "a"
+        assert problem_dir.exists(), "Problem directory should exist"
+        assert (problem_dir / "a.py").exists(), "Empty Python file should be created"
+        
+        # ファイルが空であることを確認
+        with open(problem_dir / "a.py") as f:
+            content = f.read()
+            assert content.strip() == "", "File should be empty when template is missing"
+        
+        # コマンド実行確認
+        expected_url = "https://atcoder.jp/contests/abc123/tasks/abc123_a"
+        assert any(expected_url in cmd for cmd in mock_subprocess.commands), "URL should be in commands"
+
+    def test_missing_rust_template(self, workspace, mock_subprocess, mock_config, mock_webbrowser):
+        """
+        Rustのテンプレートファイルが存在しない場合のテスト
+        """
+        os.chdir(workspace)
+        # Rustのテンプレートファイルを削除
+        os.remove(workspace / "template" / "main.rs")
+        handle_command('abc123', 'o', ['a', '--rust'])
+        
+        # ディレクトリは作成されるが、空のファイルが作成されることを確認
+        problem_dir = workspace / "contest" / "abc123" / "a"
+        assert problem_dir.exists(), "Problem directory should exist"
+        assert (problem_dir / "a.rs").exists(), "Empty Rust file should be created"
+        
+        # ファイルが空であることを確認
+        with open(problem_dir / "a.rs") as f:
+            content = f.read()
+            assert content.strip() == "", "File should be empty when template is missing"
+        
+        # コマンド実行確認
+        expected_url = "https://atcoder.jp/contests/abc123/tasks/abc123_a"
+        assert any(expected_url in cmd for cmd in mock_subprocess.commands), "URL should be in commands" 

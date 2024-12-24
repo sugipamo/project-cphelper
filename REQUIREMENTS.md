@@ -9,7 +9,7 @@ AtCoderのコンテスト問題の管理、テスト実行、提出を効率化�
 ### 2.1 通常問題への対応
 online-judge-toolsを利用した以下の機能を提供:
 ```
-python3 manage.py <contest_id> <command> <problem_id> [options]
+python3 cp.py <contest_id> <command> <problem_id> [options]
 ```
 - o: 問題ファイルの作成とテストケースの取得
 - t: テストケース実行（並列実行、タイムアウト5秒）
@@ -22,7 +22,7 @@ python3 manage.py <contest_id> <command> <problem_id> [options]
 
 ### 2.2 AHC特有の機能
 ```
-python3 manage.py <contest_id> ahctest <number_of_cases>
+python3 cp.py <contest_id> ahctest <number_of_cases>
 ```
 - ツール類の自動セットアップ（本体、webvisualizer）
 - テストケース生成と実行（seed値、in/out/other）
@@ -52,7 +52,7 @@ ojt/
 │           ├── sample-1.out
 │           ├── custom-1.in   # 生成したテストケース
 │           └── custom-1.out
-└── manage.py
+└── cp.py
 ```
 
 ## 5. 非機能要件

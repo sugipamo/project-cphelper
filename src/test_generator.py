@@ -18,13 +18,6 @@ def generate_test_cases(contest_id: str, problem_id: str, test_dir: Path):
         problem_id (str): 問題ID
         test_dir (Path): テストケースを保存するディレクトリ
     """
-    # 既存のカスタムテストケースを削除
-    if test_dir.exists():
-        for file in test_dir.glob("custom-*.in"):
-            file.unlink()
-        for file in test_dir.glob("custom-*.out"):
-            file.unlink()
-
     # ジェネレータファイルのパスを構築
     generator_path = Path("contest") / contest_id / problem_id / f"{problem_id}_gen.py"
     
@@ -57,6 +50,10 @@ def generate_test_cases(contest_id: str, problem_id: str, test_dir: Path):
     # テストディレクトリを作成
     os.makedirs(test_dir, exist_ok=True)
     
+    # 既存のテストケースの数を取得
+    existing_files = sorted(test_dir.glob("custom-*.in"))
+    next_index = len(existing_files) + 1
+    
     # テストケースを生成して保存
     for i in range(num_cases):
         # テストケースを生成
@@ -71,8 +68,8 @@ def generate_test_cases(contest_id: str, problem_id: str, test_dir: Path):
                 raise ValueError(f"Test case {i+1} violates constraints")
         
         # ファイル名を生成
-        input_file = test_dir / f"custom-{timestamp}-{i+1}.in"
-        output_file = test_dir / f"custom-{timestamp}-{i+1}.out"
+        input_file = test_dir / f"custom-{timestamp}-{next_index + i}.in"
+        output_file = test_dir / f"custom-{timestamp}-{next_index + i}.out"
         
         # テストケースを保存
         with open(input_file, 'w') as f:

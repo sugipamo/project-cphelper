@@ -14,20 +14,24 @@ import shutil
 
 def handle_command(contest_id: str, command: str, args: list):
     """
-    コマンドの振り分けと実行
+    コマンドの処理
     """
+    # オプションの解析
+    use_rust = "--rust" in args or "-rs" in args
+    
+    if not args:
+        raise IndexError("Problem ID is required")
+    
+    problem_id = args[0]
+    
     if command == "o":
-        if not args:
-            raise IndexError("Problem ID is required")
-        open_problem(contest_id, args[0], "--rust" in args or "-rs" in args)
-    elif command == "t" and len(args) >= 1:
-        test_solution(contest_id, args[0], "--rust" in args or "-rs" in args)
-    elif command == "s" and len(args) >= 1:
-        submit_solution(contest_id, args[0], "--rust" in args or "-rs" in args)
-    elif command == "g" and len(args) >= 1:
-        create_or_generate(contest_id, args[0])
-    elif command == "ahctest" and len(args) >= 1:
-        run_ahc_test(contest_id, int(args[0]))
+        return open_problem(contest_id, problem_id, use_rust)
+    elif command == "s":
+        return submit_solution(contest_id, problem_id, use_rust)
+    elif command == "t":
+        return test_solution(contest_id, problem_id, use_rust)
+    elif command == "g":
+        return generate_testcases(contest_id, problem_id)
     else:
         raise ValueError("Invalid command or arguments")
 
@@ -85,12 +89,7 @@ def test_solution(contest_id: str, problem_id: str, use_rust: bool = False):
     source_file = problem_dir / f"{problem_id}.{ext}"
     if not source_file.exists():
         raise FileNotFoundError(f"Source file not found: {source_file}")
-
-    # カスタムテストケースの生成
-    generator_file = problem_dir / f"{problem_id}_gen.py"
-    if generator_file.exists():
-        test_generator.generate_test_cases(contest_id, problem_id, test_dir)
-
+    
     # テスト実行
     lang = "rust" if use_rust else "pypy"  # デフォルトはpypy
     docker_img = config.DOCKER_IMAGE[lang]
@@ -116,7 +115,7 @@ def test_solution(contest_id: str, problem_id: str, use_rust: bool = False):
     test_cmd = f'{docker_base} {cmd}'
     try:
         subprocess.run(
-            f'oj test -c "{test_cmd}" -d test -j {config.PARALLEL}',
+            f'oj test -c "{test_cmd}" -d test -j {config.PARALLEL} --silent',
             shell=True,
             check=True,
             cwd=problem_dir
@@ -124,6 +123,53 @@ def test_solution(contest_id: str, problem_id: str, use_rust: bool = False):
         return True
     except subprocess.CalledProcessError:
         return False
+
+def generate_testcases(contest_id: str, problem_id: str):
+    """
+    カスタムテストケースの生成
+    """
+    problem_dir = config.get_problem_dir(contest_id, problem_id)
+    test_dir = config.get_test_dir(contest_id, problem_id)
+    
+    # ジェネレータファイルの存在確認と作成
+    generator_file = problem_dir / f"{problem_id}_gen.py"
+    if not generator_file.exists():
+        problem_dir.mkdir(parents=True, exist_ok=True)
+        template_file = Path(config.TEMPLATE_DIR) / "generator.py"
+        if template_file.exists():
+            generator_file.write_text(template_file.read_text())
+        else:
+            template = '''import random
+
+TESTCASE_NUM = 10
+
+def check_constraints(input_data: str) -> bool:
+    """
+    入力データが制約を満たしているかチェックする
+    Args:
+        input_data (str): 入力データ
+    Returns:
+        bool: 制約を満たしている場合True
+    """
+    return True
+
+def generate():
+    """
+    テストケースを生成する
+    Returns:
+        dict: 入力と出力のデータ
+    """
+    return {
+        'input': '',
+        'output': ''
+    }
+'''
+            generator_file.write_text(template)
+        return True
+    
+    # テストケースの生成
+    test_generator.generate_test_cases(contest_id, problem_id, test_dir)
+    return True
 
 def submit_solution(contest_id: str, problem_id: str, use_rust: bool = False):
     """

@@ -138,3 +138,45 @@ class TestCommandO:
         os.chdir(workspace)
         with pytest.raises(ValueError, match="Invalid command or arguments"):
             handle_command('abc123', 'invalid', ['a']) 
+
+    def test_rust_option(self, workspace, mock_subprocess, mock_config, mock_webbrowser):
+        """
+        Rustオプション指定のテスト
+        """
+        os.chdir(workspace)
+        handle_command('abc123', 'o', ['a', '--rust'])
+        
+        # 各階層のディレクトリ存在確認
+        problem_dir = workspace / "contest" / "abc123" / "a"
+        assert problem_dir.exists(), "Problem directory should exist"
+        assert (problem_dir / "a.rs").exists(), "Rust file should be created"
+        
+        # ファイルの内容確認
+        with open(problem_dir / "a.rs") as f:
+            content = f.read()
+            assert content.strip() == "// Test template", "File should contain Rust template content"
+        
+        # コマンド実行確認
+        expected_url = "https://atcoder.jp/contests/abc123/tasks/abc123_a"
+        assert any(expected_url in cmd for cmd in mock_subprocess.commands), "URL should be in commands"
+
+    def test_rust_short_option(self, workspace, mock_subprocess, mock_config, mock_webbrowser):
+        """
+        Rustの短縮オプション(-rs)のテスト
+        """
+        os.chdir(workspace)
+        handle_command('abc123', 'o', ['a', '-rs'])
+        
+        # 各階層のディレクトリ存在確認
+        problem_dir = workspace / "contest" / "abc123" / "a"
+        assert problem_dir.exists(), "Problem directory should exist"
+        assert (problem_dir / "a.rs").exists(), "Rust file should be created"
+        
+        # ファイルの内容確認
+        with open(problem_dir / "a.rs") as f:
+            content = f.read()
+            assert content.strip() == "// Test template", "File should contain Rust template content"
+        
+        # コマンド実行確認
+        expected_url = "https://atcoder.jp/contests/abc123/tasks/abc123_a"
+        assert any(expected_url in cmd for cmd in mock_subprocess.commands), "URL should be in commands" 

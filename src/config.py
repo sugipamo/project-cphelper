@@ -61,11 +61,26 @@ def setup_environment():
     for dir_path in dirs:
         Path(dir_path).mkdir(parents=True, exist_ok=True)
 
+def get_contest_dir(contest_id: str) -> Path:
+    """
+    コンテストディレクトリのパスを取得
+    Args:
+        contest_id (str): コンテストID
+    Returns:
+        Path: コンテストディレクトリのパス
+    """
+    return Path("contest") / contest_id
+
 def get_problem_dir(contest_id: str, problem_id: str) -> Path:
     """
     問題ディレクトリのパスを取得
+    Args:
+        contest_id (str): コンテストID
+        problem_id (str): 問題ID
+    Returns:
+        Path: 問題ディレクトリのパス
     """
-    return Path(CONTEST_DIR) / contest_id / problem_id
+    return get_contest_dir(contest_id) / problem_id
 
 def get_test_dir(contest_id: str, problem_id: str) -> Path:
     """

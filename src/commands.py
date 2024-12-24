@@ -97,23 +97,71 @@ def test_solution(contest_id: str, problem_id: str, use_rust: bool = False):
     # テスト実行
     lang = "rust" if use_rust else "pypy"  # デフォルトはpypy
     docker_img = config.DOCKER_IMAGE[lang]
-    
-    # 問題ディレクトリとテストディレクトリをDockerコンテナにマウント
-    docker_cmd = (
-        f"docker run --rm -i "
-        f"-v {source_file.absolute()}:/app/work/{source_file.name} "
-        f"-v {test_dir.absolute()}:/app/work/test "
-        f"-w /app/work"
-    )
-    docker_base = f"{docker_cmd} {docker_img}"
 
     if use_rust:
+        # .tempディレクトリにRustプロジェクトを作成
+        temp_dir = Path(".temp")
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Cargo.tomlの生成（存在しない場合のみ）
+        cargo_toml_path = temp_dir / "Cargo.toml"
+        if not cargo_toml_path.exists():
+            cargo_toml = f"""
+[package]
+name = "competitive"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+proconio = "0.4.5"
+"""
+            cargo_toml_path.write_text(cargo_toml)
+        
+        # srcディレクトリの作成とソースファイルのコピー
+        src_dir = temp_dir / "src"
+        src_dir.mkdir(parents=True, exist_ok=True)
+        
+        # ソースファイルをmain.rsとしてコピー
+        main_file = src_dir / "main.rs"
+        try:
+            content = source_file.read_text()
+            main_file.write_text(content)
+            print(f"Copied source file to {main_file}")
+        except Exception as e:
+            print(f"Error copying source file: {e}")
+            raise
+        
+        # Rustのビルドとテスト実行用のコマンド
+        docker_cmd = (
+            f"docker run --rm -i "
+            f"-v {temp_dir.absolute()}:/app/work "
+            f"-v {test_dir.absolute()}:/app/work/test "
+            f"-w /app/work"
+        )
+        docker_base = f"{docker_cmd} {docker_img}"
+        
         # Rustのビルド
-        subprocess.run(f"{docker_base} cargo build --release", shell=True)
-        cmd = f"./target/release/{contest_id}_{problem_id}"
+        print("Building Rust project...")
+        subprocess.run(f"{docker_base} cargo build --release", shell=True, check=True)
+        cmd = "/app/work/target/release/competitive"  # 固定の実行ファイル名を使用
     else:
+        # Pythonの場合、ライブラリのマージ
+        merged_code = lib_merger.merge_libraries(source_file)
+        temp_file = Path(".temp") / f"{problem_id}.py"
+        temp_file.parent.mkdir(exist_ok=True)
+        temp_file.write_text(merged_code)
+        
         interpreter = config.INTERPRETER[lang]
-        cmd = f"{interpreter} {source_file.name}"
+        cmd = f"{interpreter} {temp_file.name}"
+        
+        # Dockerコマンドの設定
+        docker_cmd = (
+            f"docker run --rm -i "
+            f"-v {temp_file.absolute()}:/app/work/{temp_file.name} "
+            f"-v {test_dir.absolute()}:/app/work/test "
+            f"-w /app/work"
+        )
+        docker_base = f"{docker_cmd} {docker_img}"
 
     # ojコマンドをホストで実行し、実行コマンドとしてDockerを使用
     test_cmd = f'{docker_base} {cmd}'

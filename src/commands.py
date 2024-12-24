@@ -24,6 +24,8 @@ def handle_command(contest_id: str, command: str, args: list):
         test_solution(contest_id, args[0], "--rust" in args or "-rs" in args)
     elif command == "s" and len(args) >= 1:
         submit_solution(contest_id, args[0], "--rust" in args or "-rs" in args)
+    elif command == "g" and len(args) >= 1:
+        create_or_generate(contest_id, args[0])
     elif command == "ahctest" and len(args) >= 1:
         run_ahc_test(contest_id, int(args[0]))
     else:
@@ -53,8 +55,17 @@ def open_problem(contest_id: str, problem_id: str, use_rust: bool = False):
 
     # テストケースダウンロード
     test_dir = config.get_test_dir(contest_id, problem_id)
-    if not test_dir.exists():
-        subprocess.run(f"oj download {url}", shell=True, cwd=test_dir.parent)
+    if test_dir.exists():
+        shutil.rmtree(test_dir)
+    test_dir.mkdir(parents=True, exist_ok=True)
+    subprocess.run(f"oj download {url}", shell=True, cwd=test_dir)
+    
+    # test/testディレクトリが作成された場合は、その中身を移動
+    nested_test_dir = test_dir / "test"
+    if nested_test_dir.exists():
+        for file in nested_test_dir.glob("*"):
+            shutil.move(str(file), str(test_dir / file.name))
+        shutil.rmtree(nested_test_dir)
 
     # エディタで開く
     if "code" in os.environ["PATH"]:
@@ -75,15 +86,10 @@ def test_solution(contest_id: str, problem_id: str, use_rust: bool = False):
     if not source_file.exists():
         raise FileNotFoundError(f"Source file not found: {source_file}")
 
-    # テストケースのダウンロード
-    test_dir.mkdir(parents=True, exist_ok=True)
-    url = f"https://atcoder.jp/contests/{contest_id}/tasks/{contest_id}_{problem_id}"
-    subprocess.run(f"oj download {url}", shell=True, cwd=test_dir)
-
     # カスタムテストケースの生成
-    gen_file = problem_dir / f"{problem_id}_gen.py"
-    if gen_file.exists():
-        test_generator.generate_test_cases(gen_file, test_dir)
+    generator_file = problem_dir / f"{problem_id}_gen.py"
+    if generator_file.exists():
+        test_generator.generate_test_cases(contest_id, problem_id, test_dir)
 
     # テスト実行
     lang = "rust" if use_rust else "pypy"  # デフォルトはpypy
@@ -92,7 +98,8 @@ def test_solution(contest_id: str, problem_id: str, use_rust: bool = False):
     # 問題ディレクトリとテストディレクトリをDockerコンテナにマウント
     docker_cmd = (
         f"docker run --rm -i "
-        f"-v {problem_dir.absolute()}:/app/work "
+        f"-v {source_file.absolute()}:/app/work/{source_file.name} "
+        f"-v {test_dir.absolute()}:/app/work/test "
         f"-w /app/work"
     )
     docker_base = f"{docker_cmd} {docker_img}"
@@ -103,15 +110,16 @@ def test_solution(contest_id: str, problem_id: str, use_rust: bool = False):
         cmd = f"./target/release/{contest_id}_{problem_id}"
     else:
         interpreter = config.INTERPRETER[lang]
-        cmd = f"{interpreter} {problem_id}.{ext}"
+        cmd = f"{interpreter} {source_file.name}"
 
     # ojコマンドをホストで実行し、実行コマンドとしてDockerを使用
     test_cmd = f'{docker_base} {cmd}'
     try:
         subprocess.run(
-            f'oj test -c "{test_cmd}" -d {test_dir.absolute()} -j {config.PARALLEL}',
+            f'oj test -c "{test_cmd}" -d test -j {config.PARALLEL}',
             shell=True,
-            check=True
+            check=True,
+            cwd=problem_dir
         )
         return True
     except subprocess.CalledProcessError:
@@ -158,3 +166,73 @@ def run_ahc_test(contest_id: str, n_cases: int):
     """
     ahc_tools.setup_tools(contest_id)
     ahc_tools.run_test_cases(contest_id, n_cases) 
+
+def create_or_generate(contest_id: str, problem_id: str):
+    """
+    テストケースジェネレータの作成または実行
+    
+    ジェネレータファイルが存在しない場合は作成し、
+    存在する場合はテストケースを生成する
+    """
+    problem_dir = config.get_problem_dir(contest_id, problem_id)
+    generator_file = problem_dir / f"{problem_id}_gen.py"
+    
+    if not generator_file.exists():
+        # テンプレートの内容
+        template = '''"""
+テストケース生成モジュール
+"""
+
+import random
+
+# 生成するテストケース数
+TESTCASE_NUM = 10
+
+def generate():
+    """
+    テストケースを生成する
+    
+    Returns:
+        dict: 入力と期待される出力
+            {
+                'input': str,  # 入力文字列
+                'output': str  # 期待される出力文字列
+            }
+    """
+    # ここにテストケース生成ロジックを実装
+    return {
+        'input': '1 2\\n',
+        'output': '3\\n'
+    }
+
+def check_constraints(input_data: str) -> bool:
+    """
+    制約条件をチェックする（オプション）
+    
+    Args:
+        input_data (str): 生成された入力データ
+        
+    Returns:
+        bool: 制約を満たしていればTrue
+    """
+    # ここに制約チェックロジックを実装
+    return True
+'''
+        
+        # ディレクトリが存在しない場合は作成
+        problem_dir.mkdir(parents=True, exist_ok=True)
+        
+        # テンプレートを書き込む
+        generator_file.write_text(template)
+        print(f"Created generator file: {generator_file}")
+        
+        # エディタで開く
+        if "code" in os.environ["PATH"]:
+            subprocess.run(f"code {generator_file}", shell=True)
+        else:
+            subprocess.run(f"cursor {generator_file}", shell=True)
+    else:
+        # ジェネレータが存在する場合はテストケースを生成
+        test_dir = config.get_test_dir(contest_id, problem_id)
+        test_generator.generate_test_cases(contest_id, problem_id, test_dir)
+        print(f"Generated test cases in: {test_dir}") 

@@ -124,6 +124,9 @@ def test_solution(contest_id: str, problem_id: str, use_rust: bool = False):
             print("テストケースが見つかりません")
             return False
 
+        # テストケースファイルをソート
+        test_files.sort()
+
         print(f"Running {len(test_files)} test cases...")
 
         # 各テストケースを非同期で実行
@@ -179,13 +182,20 @@ def test_solution(contest_id: str, problem_id: str, use_rust: bool = False):
                 print(actual)
                 print("-" * 40)
                 return False
-            print(f"{Fore.GREEN}Passed test: {test_file.name}{Style.RESET_ALL}")
             return True
 
         # 並列実行
         async def run_all_tests():
+            # テストケースを非同期で実行
             tasks = [run_test(tf) for tf in test_files]
             results = await asyncio.gather(*tasks)
+            
+            # 結果を順番に表示
+            for i, (test_file, result) in enumerate(zip(test_files, results)):
+                if result:
+                    print(f"{Fore.GREEN}Passed test: {test_file.name}{Style.RESET_ALL}")
+                # エラーメッセージは既にrun_test内で表示されている
+            
             return all(results)
             
         success = asyncio.run(run_all_tests())
@@ -240,10 +250,13 @@ def generate():
     }
 '''
             generator_file.write_text(template)
+        print(f"{Fore.GREEN}Created generator file: {generator_file}{Style.RESET_ALL}")
         return True
     
     # テストケースの生成
-    test_generator.generate_test_cases(contest_id, problem_id, test_dir)
+    print(f"{Fore.CYAN}Generating test cases...{Style.RESET_ALL}")
+    num_generated = test_generator.generate_test_cases(contest_id, problem_id, test_dir)
+    print(f"{Fore.GREEN}Successfully generated {num_generated} test cases!{Style.RESET_ALL}")
     return True
 
 def submit_solution(contest_id: str, problem_id: str, use_rust: bool = False):

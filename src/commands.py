@@ -11,6 +11,10 @@ from . import lib_merger
 from . import test_generator
 from . import ahc_tools
 import shutil
+from colorama import init, Fore, Style
+
+# coloramaの初期化
+init()
 
 def handle_command(contest_id: str, command: str, args: list):
     """
@@ -144,12 +148,38 @@ def test_solution(contest_id: str, problem_id: str, use_rust: bool = False):
             )
             stdout, stderr = await proc.communicate(input_data.encode())
             actual = stdout.decode().strip()
+            error = stderr.decode().strip()
+            
+            if error:
+                print(f"\n{Fore.RED}Error in test {test_file.name}:{Style.RESET_ALL}")
+                print(f"{Fore.CYAN}Input file (.in):{Style.RESET_ALL}")
+                print("-" * 40)
+                print(input_data.strip())
+                print("-" * 40)
+                print(f"{Fore.CYAN}Expected output (.out):{Style.RESET_ALL}")
+                print("-" * 40)
+                print(expected.strip())
+                print("-" * 40)
+                print(f"{Fore.RED}Error message:{Style.RESET_ALL}")
+                print(error)
+                return False
             
             if actual.strip() != expected.strip():
-                print(f"Failed test: {test_file.name}")
-                print(f"Expected:\n{expected.strip()}")
-                print(f"Got:\n{actual}")
+                print(f"\n{Fore.RED}Failed test: {test_file.name}{Style.RESET_ALL}")
+                print(f"{Fore.CYAN}Input file (.in):{Style.RESET_ALL}")
+                print("-" * 40)
+                print(input_data.strip())
+                print("-" * 40)
+                print(f"{Fore.CYAN}Expected output (.out):{Style.RESET_ALL}")
+                print("-" * 40)
+                print(expected.strip())
+                print("-" * 40)
+                print(f"{Fore.YELLOW}Your output:{Style.RESET_ALL}")
+                print("-" * 40)
+                print(actual)
+                print("-" * 40)
                 return False
+            print(f"{Fore.GREEN}Passed test: {test_file.name}{Style.RESET_ALL}")
             return True
 
         # 並列実行
@@ -160,10 +190,13 @@ def test_solution(contest_id: str, problem_id: str, use_rust: bool = False):
             
         success = asyncio.run(run_all_tests())
         if success:
-            print("All tests passed!")
+            print(f"\n{Fore.GREEN}All tests passed!{Style.RESET_ALL}")
+        else:
+            print(f"\n{Fore.RED}Some tests failed.{Style.RESET_ALL}")
         return success
 
     except Exception as e:
+        print(f"\nError during test execution: {str(e)}")
         return False
 
 def generate_testcases(contest_id: str, problem_id: str):

@@ -306,3 +306,90 @@ def generate():
         # 対応する出力ファイルの存在を確認
         output_file = test_dir / test_file.name.replace(".in", ".out")
         assert output_file.exists(), "Output file should exist"
+
+    def test_runtime_error(self, workspace, mock_subprocess, mock_config):
+        """
+        実行時エラーが発生するケースのテスト
+        """
+        os.chdir(workspace)
+        # テスト対象のファイルを作成
+        problem_dir = workspace / "contest" / "abc123" / "a"
+        problem_dir.mkdir(parents=True)
+        with open(problem_dir / "a.py", "w") as f:
+            f.write("""def main():
+    N = int(input())
+    if N == 1:
+        raise Exception("Not implemented")
+    print(N)
+
+if __name__ == "__main__":
+    main()""")
+
+        # テストケースディレクトリを作成
+        test_dir = mock_config.get_test_dir('abc123', 'a')
+        test_dir.mkdir(parents=True)
+        with open(test_dir / "sample-1.in", "w") as f:
+            f.write("1")
+        with open(test_dir / "sample-1.out", "w") as f:
+            f.write("1")
+
+        # テスト実行（エラーが発生することを期待）
+        result = handle_command('abc123', 't', ['a'])
+        assert result == False, "Runtime error should cause test to fail"
+
+    def test_wrong_output_format(self, workspace, mock_subprocess, mock_config):
+        """
+        出力形式が間違っているケースのテスト
+        """
+        os.chdir(workspace)
+        # テスト対象のファイルを作成
+        problem_dir = workspace / "contest" / "abc123" / "a"
+        problem_dir.mkdir(parents=True)
+        with open(problem_dir / "a.py", "w") as f:
+            f.write("""def main():
+    N = int(input())
+    # 数値を文字列として出力（期待される出力は数値）
+    print(f"The answer is: {N}")
+
+if __name__ == "__main__":
+    main()""")
+
+        # テストケースディレクトリを作成
+        test_dir = mock_config.get_test_dir('abc123', 'a')
+        test_dir.mkdir(parents=True)
+        with open(test_dir / "sample-1.in", "w") as f:
+            f.write("42")
+        with open(test_dir / "sample-1.out", "w") as f:
+            f.write("42")
+
+        # テスト実行（出力形式の違いでテストが失敗することを期待）
+        result = handle_command('abc123', 't', ['a'])
+        assert result == False, "Wrong output format should cause test to fail"
+
+    def test_syntax_error(self, workspace, mock_subprocess, mock_config):
+        """
+        構文エラーがあるケースのテスト
+        """
+        os.chdir(workspace)
+        # テスト対象のファイルを作成（構文エラーを含む）
+        problem_dir = workspace / "contest" / "abc123" / "a"
+        problem_dir.mkdir(parents=True)
+        with open(problem_dir / "a.py", "w") as f:
+            f.write("""def main()
+    # コロンが抜けている（構文エラー）
+    print("Hello")
+
+if __name__ == "__main__":
+    main()""")
+
+        # テストケースディレクトリを作成
+        test_dir = mock_config.get_test_dir('abc123', 'a')
+        test_dir.mkdir(parents=True)
+        with open(test_dir / "sample-1.in", "w") as f:
+            f.write("test")
+        with open(test_dir / "sample-1.out", "w") as f:
+            f.write("Hello")
+
+        # テスト実行（構文エラーでテストが失敗することを期待）
+        result = handle_command('abc123', 't', ['a'])
+        assert result == False, "Syntax error should cause test to fail"

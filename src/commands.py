@@ -107,15 +107,28 @@ def test_solution(contest_id: str, problem_id: str, use_rust: bool = False):
 
     # ojコマンドをホストで実行し、実行コマンドとしてDockerを使用
     test_cmd = f'{docker_base} {cmd}'
-    subprocess.run(
-        f'oj test -c "{test_cmd}" -d {test_dir.absolute()} -j {config.PARALLEL}',
-        shell=True
-    )
+    try:
+        subprocess.run(
+            f'oj test -c "{test_cmd}" -d {test_dir.absolute()} -j {config.PARALLEL}',
+            shell=True,
+            check=True
+        )
+        return True
+    except subprocess.CalledProcessError:
+        return False
 
 def submit_solution(contest_id: str, problem_id: str, use_rust: bool = False):
     """
     解答の提出
     """
+    # 最初にテストを実行
+    if not test_solution(contest_id, problem_id, use_rust):
+        print("テストが失敗しました。")
+        response = input("それでも提出しますか？(yes/y): ").lower().strip()
+        if response not in ['yes', 'y']:
+            print("提出を中止します。")
+            return
+
     problem_dir = config.get_problem_dir(contest_id, problem_id)
     
     # ソースファイルの存在確認
@@ -137,7 +150,7 @@ def submit_solution(contest_id: str, problem_id: str, use_rust: bool = False):
 
     # 提出
     url = f"https://atcoder.jp/contests/{contest_id}/tasks/{contest_id}_{problem_id}"
-    subprocess.run(f"oj submit --yes {url} {source_file} -l {lang_id}", shell=True)
+    subprocess.run(f"oj submit --yes {url} {source_file} -l {lang_id}", shell=True, check=True)
 
 def run_ahc_test(contest_id: str, n_cases: int):
     """

@@ -20,7 +20,7 @@ class TestCommandS:
         # ojコマンドが実行されたことを確認
         expected_url = "https://atcoder.jp/contests/abc123/tasks/abc123_a"
         expected_lang = mock_config.LANGUAGE_CODE["pypy"]
-        assert any(f"oj submit {expected_url}" in cmd for cmd in mock_subprocess.commands), "Submit command should be executed"
+        assert any(f"oj submit --yes {expected_url}" in cmd for cmd in mock_subprocess.commands), "Submit command should be executed"
         assert any(f"-l {expected_lang}" in cmd for cmd in mock_subprocess.commands), "Language ID should be specified"
 
     def test_rust_submit(self, workspace, mock_subprocess, mock_config):
@@ -39,7 +39,7 @@ class TestCommandS:
         # ojコマンドが実行されたことを確認
         expected_url = "https://atcoder.jp/contests/abc123/tasks/abc123_a"
         expected_lang = mock_config.LANGUAGE_CODE["rust"]
-        assert any(f"oj submit {expected_url}" in cmd for cmd in mock_subprocess.commands), "Submit command should be executed"
+        assert any(f"oj submit --yes {expected_url}" in cmd for cmd in mock_subprocess.commands), "Submit command should be executed"
         assert any(f"-l {expected_lang}" in cmd for cmd in mock_subprocess.commands), "Language ID should be specified"
 
     def test_missing_source_file(self, workspace, mock_subprocess, mock_config):

@@ -73,8 +73,7 @@ def test_solution(contest_id: str, problem_id: str, use_rust: bool = False):
     ext = "rs" if use_rust else "py"
     source_file = problem_dir / f"{problem_id}.{ext}"
     if not source_file.exists():
-        print("Source file not found")
-        return
+        raise FileNotFoundError(f"Source file not found: {source_file}")
 
     # カスタムテストケースの生成
     gen_file = problem_dir / f"{problem_id}_gen.py"

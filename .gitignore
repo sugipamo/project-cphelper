@@ -1,6 +1,6 @@
 **/__pycache__/
 contest/target
 contest/**
-!contest/Cargo.toml
 !contest/template
+!contest/template/*
 .temp/*

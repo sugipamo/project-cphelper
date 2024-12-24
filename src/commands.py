@@ -147,17 +147,21 @@ proconio = "0.4.5"
     else:
         # Pythonの場合、ライブラリのマージ
         merged_code = lib_merger.merge_libraries(source_file)
-        temp_file = Path(".temp") / f"{problem_id}.py"
-        temp_file.parent.mkdir(exist_ok=True)
-        temp_file.write_text(merged_code)
+        temp_dir = Path(".temp")
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        
+        # ソースファイルをmain.pyとしてコピー
+        main_file = temp_dir / "main.py"
+        main_file.write_text(merged_code)
+        print(f"Copied source file to {main_file}")
         
         interpreter = config.INTERPRETER[lang]
-        cmd = f"{interpreter} {temp_file.name}"
+        cmd = f"{interpreter} main.py"
         
         # Dockerコマンドの設定
         docker_cmd = (
             f"docker run --rm -i "
-            f"-v {temp_file.absolute()}:/app/work/{temp_file.name} "
+            f"-v {temp_dir.absolute()}:/app/work "
             f"-v {test_dir.absolute()}:/app/work/test "
             f"-w /app/work"
         )

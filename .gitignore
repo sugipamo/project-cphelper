@@ -3,4 +3,4 @@ contest/target
 contest/**
 !contest/Cargo.toml
 !contest/template
-.temp
+.temp/*

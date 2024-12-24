@@ -81,28 +81,19 @@ def open_problem(contest_id: str, problem_id: str, use_rust: bool = False):
     else:
         subprocess.run(f"cursor {source_file}", shell=True)
 
-def test_solution(contest_id: str, problem_id: str, use_rust: bool = False):
+def merge_and_copy_to_temp(source_file: Path, use_rust: bool) -> Path:
     """
-    解答のテスト実行
+    ソースコードをマージして.tempにコピーする
+    Args:
+        source_file (Path): ソースファイルのパス
+        use_rust (bool): Rustを使用するかどうか
+    Returns:
+        Path: .temp内のファイルパス
     """
-    problem_dir = config.get_problem_dir(contest_id, problem_id)
-    test_dir = config.get_test_dir(contest_id, problem_id)
-
-    # ソースファイルの存在確認
-    ext = "rs" if use_rust else "py"
-    source_file = problem_dir / f"{problem_id}.{ext}"
-    if not source_file.exists():
-        raise FileNotFoundError(f"Source file not found: {source_file}")
-    
-    # テスト実行
-    lang = "rust" if use_rust else "pypy"  # デフォルトはpypy
-    docker_img = config.DOCKER_IMAGE[lang]
+    temp_dir = Path(".temp")
+    temp_dir.mkdir(parents=True, exist_ok=True)
 
     if use_rust:
-        # .tempディレクトリにRustプロジェクトを作成
-        temp_dir = Path(".temp")
-        temp_dir.mkdir(parents=True, exist_ok=True)
-        
         # Cargo.tomlの生成（存在しない場合のみ）
         cargo_toml_path = temp_dir / "Cargo.toml"
         if not cargo_toml_path.exists():
@@ -130,42 +121,53 @@ proconio = "0.4.5"
         except Exception as e:
             print(f"Error copying source file: {e}")
             raise
-        
-        # Rustのビルドとテスト実行用のコマンド
-        docker_cmd = (
-            f"docker run --rm -i "
-            f"-v {temp_dir.absolute()}:/app/work "
-            f"-v {test_dir.absolute()}:/app/work/test "
-            f"-w /app/work"
-        )
-        docker_base = f"{docker_cmd} {docker_img}"
-        
+        return main_file
+    else:
+        # Pythonの場合、ライブラリのマージ
+        merged_code = lib_merger.merge_libraries(source_file)
+        main_file = temp_dir / "main.py"
+        main_file.write_text(merged_code)
+        print(f"Copied source file to {main_file}")
+        return main_file
+
+def test_solution(contest_id: str, problem_id: str, use_rust: bool = False):
+    """
+    解答のテスト実行
+    """
+    problem_dir = config.get_problem_dir(contest_id, problem_id)
+    test_dir = config.get_test_dir(contest_id, problem_id)
+
+    # ソースファイルの存在確認
+    ext = "rs" if use_rust else "py"
+    source_file = problem_dir / f"{problem_id}.{ext}"
+    if not source_file.exists():
+        raise FileNotFoundError(f"Source file not found: {source_file}")
+    
+    # ソースコードのマージとコピー
+    temp_dir = Path(".temp")
+    main_file = merge_and_copy_to_temp(source_file, use_rust)
+    
+    # テスト実行
+    lang = "rust" if use_rust else "pypy"  # デフォルトはpypy
+    docker_img = config.DOCKER_IMAGE[lang]
+    
+    # Dockerコマンドの設定
+    docker_cmd = (
+        f"docker run --rm -i "
+        f"-v {temp_dir.absolute()}:/app/work "
+        f"-v {test_dir.absolute()}:/app/work/test "
+        f"-w /app/work"
+    )
+    docker_base = f"{docker_cmd} {docker_img}"
+    
+    if use_rust:
         # Rustのビルド
         print("Building Rust project...")
         subprocess.run(f"{docker_base} cargo build --release", shell=True, check=True)
         cmd = "/app/work/target/release/competitive"  # 固定の実行ファイル名を使用
     else:
-        # Pythonの場合、ライブラリのマージ
-        merged_code = lib_merger.merge_libraries(source_file)
-        temp_dir = Path(".temp")
-        temp_dir.mkdir(parents=True, exist_ok=True)
-        
-        # ソースファイルをmain.pyとしてコピー
-        main_file = temp_dir / "main.py"
-        main_file.write_text(merged_code)
-        print(f"Copied source file to {main_file}")
-        
         interpreter = config.INTERPRETER[lang]
         cmd = f"{interpreter} main.py"
-        
-        # Dockerコマンドの設定
-        docker_cmd = (
-            f"docker run --rm -i "
-            f"-v {temp_dir.absolute()}:/app/work "
-            f"-v {test_dir.absolute()}:/app/work/test "
-            f"-w /app/work"
-        )
-        docker_base = f"{docker_cmd} {docker_img}"
 
     # ojコマンドをホストで実行し、実行コマンドとしてDockerを使用
     test_cmd = f'{docker_base} {cmd}'
@@ -315,36 +317,21 @@ def submit_solution(contest_id: str, problem_id: str, use_rust: bool = False):
     """
     解答の提出
     """
-    # 最初にテストを実行
-    if not test_solution(contest_id, problem_id, use_rust):
-        print("テストが失敗しました。")
-        response = input("それでも提出しますか？(yes/y): ").lower().strip()
-        if response not in ['yes', 'y']:
-            print("提出を中止します。")
-            return
-
-    problem_dir = config.get_problem_dir(contest_id, problem_id)
-    
     # ソースファイルの存在確認
     ext = "rs" if use_rust else "py"
-    source_file = problem_dir / f"{problem_id}.{ext}"
+    source_file = config.get_problem_dir(contest_id, problem_id) / f"{problem_id}.{ext}"
     if not source_file.exists():
         raise FileNotFoundError(f"Source file not found: {source_file}")
 
-    # Pythonの場合、ライブラリのマージ
-    if not use_rust:
-        merged_code = lib_merger.merge_libraries(source_file)
-        temp_file = Path(".temp") / f"{problem_id}.py"
-        temp_file.parent.mkdir(exist_ok=True)
-        temp_file.write_text(merged_code)
-        source_file = temp_file
+    # ソースコードのマージとコピー
+    main_file = merge_and_copy_to_temp(source_file, use_rust)
 
     # 言語IDの取得
     lang_id = config.LANGUAGE_CODE["rust" if use_rust else "pypy"]
 
     # 提出
     url = f"https://atcoder.jp/contests/{contest_id}/tasks/{contest_id}_{problem_id}"
-    subprocess.run(f"oj submit --yes {url} {source_file} -l {lang_id}", shell=True, check=True)
+    subprocess.run(f"oj submit --yes {url} {main_file} -l {lang_id}", shell=True, check=True)
 
 def run_ahc_test(contest_id: str, n_cases: int):
     """

@@ -1,121 +1,138 @@
 """
 ライブラリマージ機能の実装
+複数のPythonファイルを1つのファイルにマージします。
 """
 
+import ast
 import re
+import os
 from pathlib import Path
-from . import config
+from typing import Set, Dict, List
+
+class ImportResolver:
+    def __init__(self, base_dir: Path):
+        self.base_dir = base_dir
+        self.processed_files: Set[Path] = set()
+        self.imported_contents: Dict[str, str] = {}
+        self.workspace_root = self._find_workspace_root(base_dir)
+
+    def _find_workspace_root(self, start_path: Path) -> Path:
+        """ワークスペースのルートディレクトリを探索"""
+        current = start_path.absolute()
+        while current != current.parent:
+            if (current / "contest").exists():
+                return current
+            current = current.parent
+        return start_path.absolute()
+
+    def resolve_file(self, file_path: Path) -> str:
+        """ファイルの内容を解決し、依存関係を含めた完全なコードを返します"""
+        if file_path in self.processed_files:
+            return ""
+        
+        if not file_path.exists():
+            raise FileNotFoundError(f"ファイルが見つかりません: {file_path}")
+
+        self.processed_files.add(file_path)
+        content = file_path.read_text(encoding='utf-8')
+        
+        # ASTを使用してimport文を解析
+        tree = ast.parse(content)
+        imports = self._find_imports(tree)
+        
+        # 各importを解決
+        resolved_contents = []
+        for imp in imports:
+            import_path = self._resolve_import_path(file_path, imp)
+            if import_path and import_path.exists() and import_path not in self.processed_files:
+                resolved_contents.append(self.resolve_file(import_path))
+
+        # import文を除去
+        cleaned_content = self._remove_imports(content)
+        resolved_contents.append(cleaned_content)
+        
+        return '\n'.join(resolved_contents)
+
+    def _find_imports(self, tree: ast.AST) -> List[str]:
+        """ASTからすべてのインポートパスを抽出"""
+        imports = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for name in node.names:
+                    imports.append(name.name)
+            elif isinstance(node, ast.ImportFrom):
+                if node.module:
+                    module_path = f"{'.' * node.level}{node.module}"
+                    imports.append(module_path)
+        return imports
+
+    def _resolve_import_path(self, current_file: Path, import_name: str) -> Path:
+        """インポートパスを解決"""
+        if import_name.startswith('.'):
+            # 相対インポート
+            return self._resolve_relative_import(current_file, import_name.lstrip('.'))
+        else:
+            # 絶対インポート
+            parts = import_name.split('.')
+            if parts[0] == 'contest':
+                # contestからの絶対インポート
+                return self.workspace_root / Path(*parts).with_suffix('.py')
+            else:
+                # その他の絶対インポート
+                return self.base_dir / Path(import_name.replace('.', '/')).with_suffix('.py')
+
+    def _resolve_relative_import(self, current_file: Path, relative_path: str) -> Path:
+        """相対インポートのパスを解決"""
+        return (current_file.parent / relative_path.replace('.', '/')).with_suffix('.py')
+
+    def _remove_imports(self, content: str) -> str:
+        """import文を除去"""
+        lines = content.split('\n')
+        cleaned_lines = []
+        skip_next = False
+        
+        for line in lines:
+            if skip_next:
+                if line.strip().startswith(('import ', 'from ')):
+                    continue
+                skip_next = False
+            
+            if line.strip().startswith(('import ', 'from ')):
+                skip_next = True
+                continue
+                
+            cleaned_lines.append(line)
+            
+        return '\n'.join(cleaned_lines)
+
+def merge_code(source_file: Path) -> str:
+    """
+    メインのマージ関数
+    source_file: マージ対象のメインファイルのパス
+    """
+    resolver = ImportResolver(source_file.parent)
+    merged_code = resolver.resolve_file(source_file)
+    
+    # 重複する空行を削除
+    merged_code = re.sub(r'\n\s*\n', '\n\n', merged_code)
+    return merged_code.strip() + '\n'
+
+def save_merged_code(source_file: Path, output_file: Path = None) -> None:
+    """
+    マージしたコードを保存
+    source_file: マージ対象のメインファイルのパス
+    output_file: 出力先のファイルパス（Noneの場合は.tempファイルを作成）
+    """
+    if output_file is None:
+        output_file = source_file.with_suffix('.temp')
+    
+    merged_code = merge_code(source_file)
+    output_file.write_text(merged_code, encoding='utf-8')
+    print(f"マージされたコードを保存しました: {output_file}") 
 
 def merge_libraries(source_file: Path) -> str:
     """
-    ソースコードとライブラリをマージ
+    後方互換性のために残している関数
+    merge_code関数を呼び出します
     """
-    # ソースコードの読み込み
-    source_code = source_file.read_text()
-    
-    # importの検出と解決
-    merged_code = resolve_imports(source_code)
-    
-    return merged_code
-
-def resolve_imports(source_code: str, processed_files: set = None) -> str:
-    """
-    import文を解決してコードをマージ
-    """
-    if processed_files is None:
-        processed_files = set()
-
-    # from lib.xxx import yyy の形式を検出
-    pattern = r'from\s+lib\.([.\w]+)\s+import\s+([^#\n]+)'
-    
-    def replace_import(match):
-        module_path = match.group(1).replace('.', '/')
-        imports = match.group(2).strip()
-        
-        # ライブラリファイルのパス
-        lib_file = Path(config.LIB_DIR) / f"{module_path}.py"
-        
-        # 既に処理済みのファイルはスキップ
-        if lib_file in processed_files:
-            return ""
-        
-        if not lib_file.exists():
-            print(f"Warning: Library file not found: {lib_file}")
-            return match.group(0)
-        
-        # ライブラリコードの読み込みと再帰的な解決
-        processed_files.add(lib_file)
-        lib_code = lib_file.read_text()
-        resolved_code = resolve_imports(lib_code, processed_files)
-        
-        # 必要な関数のみを抽出
-        if imports == '*':
-            return resolved_code
-        
-        # 指定された関数のみを抽出
-        funcs = [f.strip() for f in imports.split(',')]
-        extracted_code = extract_functions(resolved_code, funcs)
-        
-        return extracted_code
-
-    # import文の置換
-    merged_code = re.sub(pattern, replace_import, source_code)
-    
-    return merged_code
-
-def extract_functions(code: str, function_names: list) -> str:
-    """
-    指定された関数のコードを抽出
-    """
-    result = []
-    
-    # 関数定義を探す正規表現
-    func_pattern = r'def\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\('
-    
-    # まず全ての関数定義を見つける
-    all_functions = {}
-    current_func = None
-    current_lines = []
-    
-    for line in code.split('\n'):
-        match = re.match(func_pattern, line)
-        if match:
-            # 前の関数があれば保存
-            if current_func:
-                all_functions[current_func] = '\n'.join(current_lines)
-            # 新しい関数の開始
-            current_func = match.group(1)
-            current_lines = [line]
-        elif current_func and (line.strip() == '' or line[0] in ' \t'):
-            # 関数の続き
-            current_lines.append(line)
-        elif current_func:
-            # 関数の終了
-            all_functions[current_func] = '\n'.join(current_lines)
-            current_func = None
-            current_lines = []
-            if not line.strip().startswith(('import ', 'from ')):
-                result.append(line)
-        elif not line.strip().startswith(('import ', 'from ')):
-            # グローバルスコープのコード
-            result.append(line)
-    
-    # 最後の関数があれば保存
-    if current_func:
-        all_functions[current_func] = '\n'.join(current_lines)
-    
-    # 関数の依存関係を解決（単純化版）
-    processed = set()
-    for func_name in function_names:
-        if func_name in all_functions and func_name not in processed:
-            result.append(all_functions[func_name])
-            processed.add(func_name)
-            # この関数が使用する他の関数を探す
-            func_code = all_functions[func_name]
-            for word in re.findall(r'[a-zA-Z_][a-zA-Z0-9_]*\s*\(', func_code):
-                called_func = word.strip('(')
-                if called_func in all_functions and called_func not in processed:
-                    result.append(all_functions[called_func])
-                    processed.add(called_func)
-    
-    return '\n'.join(result) 
+    return merge_code(source_file) 

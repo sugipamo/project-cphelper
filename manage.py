@@ -111,7 +111,10 @@ class Contest:
                         f.write(template.read())
                 else:
                     f.write("")
-        subprocess.call(f"code {self.source_path}", shell=True)
+        if "code" in os.environ["PATH"]:
+            subprocess.call(f"code {self.source_path}", shell=True)
+        else:
+            subprocess.call(f"cursor {self.source_path}", shell=True)
         
         if self.__interpreter == "rust":
             self.__change_cargoyaml()

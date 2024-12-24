@@ -137,7 +137,7 @@ def submit_solution(contest_id: str, problem_id: str, use_rust: bool = False):
 
     # 提出
     url = f"https://atcoder.jp/contests/{contest_id}/tasks/{contest_id}_{problem_id}"
-    subprocess.run(f"oj submit {url} {source_file} -l {lang_id}", shell=True)
+    subprocess.run(f"oj submit --yes {url} {source_file} -l {lang_id}", shell=True)
 
 def run_ahc_test(contest_id: str, n_cases: int):
     """

@@ -40,6 +40,11 @@ def mock_config(monkeypatch, workspace):
     """configのモック"""
     class MockConfig:
         TEMPLATE_DIR = workspace / "template"
+        LANGUAGE_CODE = {
+            "pypy": "4047",  # PyPy3
+            "rust": "4050",  # Rust (1.42.0)
+        }
+        
         def get_problem_dir(self, contest_id, problem_id):
             return workspace / "contest" / contest_id / problem_id
         def get_test_dir(self, contest_id, problem_id):
@@ -47,6 +52,7 @@ def mock_config(monkeypatch, workspace):
     
     mock = MockConfig()
     monkeypatch.setattr('src.commands.config.TEMPLATE_DIR', mock.TEMPLATE_DIR)
+    monkeypatch.setattr('src.commands.config.LANGUAGE_CODE', mock.LANGUAGE_CODE)
     monkeypatch.setattr('src.commands.config.get_problem_dir', mock.get_problem_dir)
     monkeypatch.setattr('src.commands.config.get_test_dir', mock.get_test_dir)
     return mock

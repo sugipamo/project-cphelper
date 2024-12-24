@@ -104,8 +104,7 @@ def submit_solution(contest_id: str, problem_id: str, use_rust: bool = False):
     ext = "rs" if use_rust else "py"
     source_file = problem_dir / f"{problem_id}.{ext}"
     if not source_file.exists():
-        print("Source file not found")
-        return
+        raise FileNotFoundError(f"Source file not found: {source_file}")
 
     # Pythonの場合、ライブラリのマージ
     if not use_rust:

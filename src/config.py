@@ -32,6 +32,13 @@ LANGUAGE_CODE = {
 }
 
 # Docker設定
+DOCKER_IMAGE = {
+    "python": "python:3.10-slim",
+    "pypy": "pypy:3.10-slim",
+    "rust": "rust:1.70"
+}
+
+DOCKER_CMD = "docker run --rm -v $(pwd):/workspace -w /workspace"
 DOCKER_RESOURCES = {
     "cpu": "2",
     "memory": "1024M",

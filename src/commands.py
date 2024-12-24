@@ -75,22 +75,40 @@ def test_solution(contest_id: str, problem_id: str, use_rust: bool = False):
     if not source_file.exists():
         raise FileNotFoundError(f"Source file not found: {source_file}")
 
+    # テストケースのダウンロード
+    test_dir.mkdir(parents=True, exist_ok=True)
+    url = f"https://atcoder.jp/contests/{contest_id}/tasks/{contest_id}_{problem_id}"
+    subprocess.run(f"oj download {url}", shell=True, cwd=test_dir)
+
     # カスタムテストケースの生成
     gen_file = problem_dir / f"{problem_id}_gen.py"
     if gen_file.exists():
         test_generator.generate_test_cases(gen_file, test_dir)
 
     # テスト実行
-    interpreter = "rust" if use_rust else "pypy"
+    lang = "rust" if use_rust else "pypy"  # デフォルトはpypy
+    docker_img = config.DOCKER_IMAGE[lang]
+    
+    # 問題ディレクトリとテストディレクトリをDockerコンテナにマウント
+    docker_cmd = (
+        f"docker run --rm -i "
+        f"-v {problem_dir.absolute()}:/app/work "
+        f"-w /app/work"
+    )
+    docker_base = f"{docker_cmd} {docker_img}"
+
     if use_rust:
         # Rustのビルド
-        subprocess.run(f"cargo build --release", shell=True)
+        subprocess.run(f"{docker_base} cargo build --release", shell=True)
         cmd = f"./target/release/{contest_id}_{problem_id}"
     else:
-        cmd = f"{interpreter} {source_file}"
+        interpreter = config.INTERPRETER[lang]
+        cmd = f"{interpreter} {problem_id}.{ext}"
 
+    # ojコマンドをホストで実行し、実行コマンドとしてDockerを使用
+    test_cmd = f'{docker_base} {cmd}'
     subprocess.run(
-        f'oj test -c "{cmd}" -d {test_dir} -j {config.PARALLEL}',
+        f'oj test -c "{test_cmd}" -d {test_dir.absolute()} -j {config.PARALLEL}',
         shell=True
     )
 

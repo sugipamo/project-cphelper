@@ -44,6 +44,18 @@ def mock_config(monkeypatch, workspace):
             "pypy": "4047",  # PyPy3
             "rust": "4050",  # Rust (1.42.0)
         }
+        INTERPRETER = {
+            "python": "python",
+            "pypy": "pypy",
+            "rust": "rust"
+        }
+        DOCKER_IMAGE = {
+            "python": "python:3.8",
+            "pypy": "pypy:3.10-slim",
+            "rust": "rust:1.42.0"
+        }
+        DOCKER_CMD = "docker run --rm -v $(pwd):/src -w /src"  # Dockerの基本コマンド
+        PARALLEL = 4
         
         def get_problem_dir(self, contest_id, problem_id):
             return workspace / "contest" / contest_id / problem_id
@@ -53,6 +65,10 @@ def mock_config(monkeypatch, workspace):
     mock = MockConfig()
     monkeypatch.setattr('src.commands.config.TEMPLATE_DIR', mock.TEMPLATE_DIR)
     monkeypatch.setattr('src.commands.config.LANGUAGE_CODE', mock.LANGUAGE_CODE)
+    monkeypatch.setattr('src.commands.config.INTERPRETER', mock.INTERPRETER)
+    monkeypatch.setattr('src.commands.config.DOCKER_IMAGE', mock.DOCKER_IMAGE)
+    monkeypatch.setattr('src.commands.config.DOCKER_CMD', mock.DOCKER_CMD)
+    monkeypatch.setattr('src.commands.config.PARALLEL', mock.PARALLEL)
     monkeypatch.setattr('src.commands.config.get_problem_dir', mock.get_problem_dir)
     monkeypatch.setattr('src.commands.config.get_test_dir', mock.get_test_dir)
     return mock

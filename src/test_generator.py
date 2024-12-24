@@ -76,9 +76,15 @@ def generate_test_cases(contest_id: str, problem_id: str, test_dir: Path):
         
         # テストケースを保存
         with open(input_file, 'w') as f:
-            f.write(test_case['input'])
+            input_data = test_case['input']
+            if not input_data.endswith('\n'):
+                input_data += '\n'
+            f.write(input_data)
         with open(output_file, 'w') as f:
-            f.write(test_case['output'])
+            output_data = test_case['output'] 
+            if not output_data.endswith('\n'):
+                output_data += '\n'
+            f.write(output_data)
             
     # 古いテストケースを保持するために、ファイルの一覧を取得
     all_test_files = []

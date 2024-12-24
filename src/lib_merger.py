@@ -46,15 +46,15 @@ def resolve_imports(source_code: str, processed_files: set = None) -> str:
         # ライブラリコードの読み込みと再帰的な解決
         processed_files.add(lib_file)
         lib_code = lib_file.read_text()
-        lib_code = resolve_imports(lib_code, processed_files)
+        resolved_code = resolve_imports(lib_code, processed_files)
         
         # 必要な関数のみを抽出
         if imports == '*':
-            return lib_code
+            return resolved_code
         
         # 指定された関数のみを抽出
         funcs = [f.strip() for f in imports.split(',')]
-        extracted_code = extract_functions(lib_code, funcs)
+        extracted_code = extract_functions(resolved_code, funcs)
         
         return extracted_code
 
@@ -68,28 +68,54 @@ def extract_functions(code: str, function_names: list) -> str:
     指定された関数のコードを抽出
     """
     result = []
+    
+    # 関数定義を探す正規表現
+    func_pattern = r'def\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\('
+    
+    # まず全ての関数定義を見つける
+    all_functions = {}
     current_func = None
-    func_lines = []
+    current_lines = []
     
     for line in code.split('\n'):
-        # 関数定義の開始を検出
-        if line.startswith('def '):
+        match = re.match(func_pattern, line)
+        if match:
+            # 前の関数があれば保存
             if current_func:
-                # 前の関数が対象だった場合は保存
-                if current_func in function_names:
-                    result.extend(func_lines)
+                all_functions[current_func] = '\n'.join(current_lines)
             # 新しい関数の開始
-            current_func = line[4:line.find('(')]
-            func_lines = [line]
-        elif current_func:
+            current_func = match.group(1)
+            current_lines = [line]
+        elif current_func and (line.strip() == '' or line[0] in ' \t'):
             # 関数の続き
-            func_lines.append(line)
+            current_lines.append(line)
+        elif current_func:
+            # 関数の終了
+            all_functions[current_func] = '\n'.join(current_lines)
+            current_func = None
+            current_lines = []
+            if not line.strip().startswith(('import ', 'from ')):
+                result.append(line)
         elif not line.strip().startswith(('import ', 'from ')):
-            # グローバルスコープのコード（import文以外）
+            # グローバルスコープのコード
             result.append(line)
     
-    # 最後の関数の処理
-    if current_func and current_func in function_names:
-        result.extend(func_lines)
+    # 最後の関数があれば保存
+    if current_func:
+        all_functions[current_func] = '\n'.join(current_lines)
+    
+    # 関数の依存関係を解決（単純化版）
+    processed = set()
+    for func_name in function_names:
+        if func_name in all_functions and func_name not in processed:
+            result.append(all_functions[func_name])
+            processed.add(func_name)
+            # この関数が使用する他の関数を探す
+            func_code = all_functions[func_name]
+            for word in re.findall(r'[a-zA-Z_][a-zA-Z0-9_]*\s*\(', func_code):
+                called_func = word.strip('(')
+                if called_func in all_functions and called_func not in processed:
+                    result.append(all_functions[called_func])
+                    processed.add(called_func)
     
     return '\n'.join(result) 

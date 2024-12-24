@@ -18,32 +18,8 @@ def handle_command(contest_id: str, command: str, args: list):
     """
     if command == "o":
         if not args:
-            print("Invalid command or arguments")
             raise IndexError("Problem ID is required")
-        
-        problem_id = args[0]
-        is_rust = "--rust" in args or "-rs" in args
-        
-        # コンテストディレクトリを作成
-        contest_dir = f"contest/{contest_id}/{problem_id}"
-        os.makedirs(contest_dir, exist_ok=True)
-        
-        # テンプレートをコピー
-        template = "main.rs" if is_rust else "main.py"
-        ext = ".rs" if is_rust else ".py"
-        src = f"template/{template}"
-        dst = f"{contest_dir}/{problem_id}{ext}"
-        
-        if os.path.exists(src):
-            shutil.copy2(src, dst)  # copy2を使用して属性もコピー
-        
-        # ojコマンドを実行
-        cmd = f"oj download https://atcoder.jp/contests/{contest_id}/tasks/{contest_id}_{problem_id}"
-        subprocess.run(cmd.split())
-        
-        # cursorコマンドを実行
-        cursor_cmd = f"cursor {dst}"
-        subprocess.run(cursor_cmd.split())
+        open_problem(contest_id, args[0], "--rust" in args or "-rs" in args)
     elif command == "t" and len(args) >= 1:
         test_solution(contest_id, args[0], "--rust" in args or "-rs" in args)
     elif command == "s" and len(args) >= 1:
@@ -51,8 +27,7 @@ def handle_command(contest_id: str, command: str, args: list):
     elif command == "ahctest" and len(args) >= 1:
         run_ahc_test(contest_id, int(args[0]))
     else:
-        print("Invalid command or arguments")
-        return
+        raise ValueError("Invalid command or arguments")
 
 def open_problem(contest_id: str, problem_id: str, use_rust: bool = False):
     """

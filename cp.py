@@ -27,7 +27,7 @@ def main():
     # 環境設定
     setup_environment()
     
-    # コマンド実行
+    # 元のコマンド処理を実行
     handle_command(contest_id, command, args)
 
 if __name__ == "__main__":

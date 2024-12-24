@@ -10,13 +10,40 @@ from . import config
 from . import lib_merger
 from . import test_generator
 from . import ahc_tools
+import shutil
 
 def handle_command(contest_id: str, command: str, args: list):
     """
     コマンドの振り分けと実行
     """
-    if command == "o" and len(args) >= 1:
-        open_problem(contest_id, args[0], "--rust" in args or "-rs" in args)
+    if command == "o":
+        if not args:
+            print("Invalid command or arguments")
+            raise IndexError("Problem ID is required")
+        
+        problem_id = args[0]
+        is_rust = "--rust" in args or "-rs" in args
+        
+        # コンテストディレクトリを作成
+        contest_dir = f"contest/{contest_id}/{problem_id}"
+        os.makedirs(contest_dir, exist_ok=True)
+        
+        # テンプレートをコピー
+        template = "main.rs" if is_rust else "main.py"
+        ext = ".rs" if is_rust else ".py"
+        src = f"template/{template}"
+        dst = f"{contest_dir}/{problem_id}{ext}"
+        
+        if os.path.exists(src):
+            shutil.copy2(src, dst)  # copy2を使用して属性もコピー
+        
+        # ojコマンドを実行
+        cmd = f"oj download https://atcoder.jp/contests/{contest_id}/tasks/{contest_id}_{problem_id}"
+        subprocess.run(cmd.split())
+        
+        # cursorコマンドを実行
+        cursor_cmd = f"cursor {dst}"
+        subprocess.run(cursor_cmd.split())
     elif command == "t" and len(args) >= 1:
         test_solution(contest_id, args[0], "--rust" in args or "-rs" in args)
     elif command == "s" and len(args) >= 1:

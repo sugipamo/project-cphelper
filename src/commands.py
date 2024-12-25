@@ -75,29 +75,35 @@ def open_problem(contest_id: str, problem_id: str, use_rust: bool = False):
             shutil.move(str(file), str(test_dir / file.name))
         shutil.rmtree(nested_test_dir)
 
+    if use_rust:
+        # Rustの場合、.tempディレクトリにCargo.tomlを作成
+        temp_dir = Path(".temp")
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        cargo_toml_path = temp_dir / "Cargo.toml"
+        _update_cargo_toml(cargo_toml_path, source_file, use_src_main=False)
+        merge_and_copy_to_temp(source_file, use_rust, is_test=False)
+
     # エディタで開く
     if "code" in os.environ["PATH"]:
         subprocess.run(f"code {source_file}", shell=True)
     else:
         subprocess.run(f"cursor {source_file}", shell=True)
 
-def merge_and_copy_to_temp(source_file: Path, use_rust: bool) -> Path:
+def _update_cargo_toml(cargo_toml_path: Path, source_file: Path, use_src_main: bool = True) -> None:
     """
-    ソースコードをマージして.tempにコピーする
+    Cargo.tomlファイルを作成または更新する
     Args:
+        cargo_toml_path (Path): Cargo.tomlのパス
         source_file (Path): ソースファイルのパス
-        use_rust (bool): Rustを使用するかどうか
-    Returns:
-        Path: .temp内のファイルパス
+        use_src_main (bool): src/main.rsを使用するかどうか
     """
-    temp_dir = Path(".temp")
-    temp_dir.mkdir(parents=True, exist_ok=True)
-
-    if use_rust:
-        # Cargo.tomlの生成（存在しない場合のみ）
-        cargo_toml_path = temp_dir / "Cargo.toml"
-        if not cargo_toml_path.exists():
-            cargo_toml = f"""
+    # パスの決定
+    rust_path = "src/main.rs" if use_src_main else f"../{cargo_toml_path.parent.parent / source_file}"
+    cargo_toml_content = f"""
+[[bin]]
+name = "competitive"
+path = "{rust_path}"
+            
 [package]
 name = "competitive"
 version = "0.1.0"
@@ -106,8 +112,49 @@ edition = "2021"
 [dependencies]
 proconio = "0.4.5"
 """
-            cargo_toml_path.write_text(cargo_toml)
+
+    if not cargo_toml_path.exists():
+        # 新規作成
+        cargo_toml_path.write_text(cargo_toml_content)
+        return
+
+    # 既存のファイルを読み込んでpathだけ更新
+    with open(cargo_toml_path, 'r') as f:
+        lines = f.readlines()
+    
+    new_lines = []
+    in_bin_section = False
+    path_updated = False
+    
+    for line in lines:
+        if line.strip().startswith("[[bin]]"):
+            in_bin_section = True
+        elif line.strip().startswith("[package]"):
+            in_bin_section = False
         
+        if in_bin_section and line.strip().startswith("path ="):
+            new_lines.append(f'path = "{rust_path}"\n')
+            path_updated = True
+        else:
+            new_lines.append(line)
+    
+    with open(cargo_toml_path, 'w') as f:
+        f.writelines(new_lines)
+
+def merge_and_copy_to_temp(source_file: Path, use_rust: bool, is_test: bool = False) -> Path:
+    """
+    ソースコードをマージして.tempにコピーする
+    Args:
+        source_file (Path): ソースファイルのパス
+        use_rust (bool): Rustを使用するかどうか
+        is_test (bool): テストコマンドかどうか
+    Returns:
+        Path: .temp内のファイルパス
+    """
+    temp_dir = Path(".temp")
+    temp_dir.mkdir(parents=True, exist_ok=True)
+
+    if use_rust:
         # srcディレクトリの作成とソースファイルのコピー
         src_dir = temp_dir / "src"
         src_dir.mkdir(parents=True, exist_ok=True)
@@ -145,7 +192,14 @@ def test_solution(contest_id: str, problem_id: str, use_rust: bool = False):
     
     # ソースコードのマージとコピー
     temp_dir = Path(".temp")
-    main_file = merge_and_copy_to_temp(source_file, use_rust)
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    
+    if use_rust:
+        # Cargo.tomlの更新（src/main.rsを使用）
+        cargo_toml_path = temp_dir / "Cargo.toml"
+        _update_cargo_toml(cargo_toml_path, source_file, use_src_main=True)
+    
+    main_file = merge_and_copy_to_temp(source_file, use_rust, is_test=True)
     
     # テスト実行
     lang = "rust" if use_rust else "pypy"  # デフォルトはpypy
@@ -160,18 +214,21 @@ def test_solution(contest_id: str, problem_id: str, use_rust: bool = False):
     )
     docker_base = f"{docker_cmd} {docker_img}"
     
-    if use_rust:
-        # Rustのビルド
-        print("Building Rust project...")
-        subprocess.run(f"{docker_base} cargo build --release", shell=True, check=True)
-        cmd = "/app/work/target/release/competitive"  # 固定の実行ファイル名を使用
-    else:
-        interpreter = config.INTERPRETER[lang]
-        cmd = f"{interpreter} main.py"
-
-    # ojコマンドをホストで実行し、実行コマンドとしてDockerを使用
-    test_cmd = f'{docker_base} {config.TIMEOUT} {cmd}'
     try:
+        if use_rust:
+            # Rustのビルド
+            print("Building Rust project...")
+            subprocess.run(f"{docker_base} cargo build --release", shell=True, check=True)
+            # ビルド後にCargo.tomlのパスを元に戻す
+            _update_cargo_toml(cargo_toml_path, source_file, use_src_main=False)
+            cmd = "/app/work/target/release/competitive"  # 固定の実行ファイル名を使用
+        else:
+            interpreter = config.INTERPRETER[lang]
+            cmd = f"{interpreter} main.py"
+
+        # ojコマンドをホストで実行し、実行コマンドとしてDockerを使用
+        test_cmd = f'{docker_base} {config.TIMEOUT} {cmd}'
+
         # テストケースファイルの収集
         test_files = list(Path(test_dir).glob("*.in"))
         if not test_files:
@@ -324,7 +381,7 @@ def submit_solution(contest_id: str, problem_id: str, use_rust: bool = False):
         raise FileNotFoundError(f"Source file not found: {source_file}")
 
     # ソースコードのマージとコピー
-    main_file = merge_and_copy_to_temp(source_file, use_rust)
+    main_file = merge_and_copy_to_temp(source_file, use_rust, is_test=False)
 
     # 言語IDの取得
     lang_id = config.LANGUAGE_CODE["rust" if use_rust else "pypy"]

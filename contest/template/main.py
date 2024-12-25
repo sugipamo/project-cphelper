@@ -1,2 +1,3 @@
-N = int(input())
-A = list(map(int, input().split()))
+from IO import IO
+N = IO.read(int)
+A = IO.read(int)

@@ -156,13 +156,19 @@ class ImportResolver:
                 parts = module_path.split('.')
                 if parts[0] == 'lib':
                     # libディレクトリからの絶対インポート
-                    lib_dir = current_file.parent / 'lib'
+                    lib_dir = self.workspace_root / 'contest' / 'lib'
                     if len(parts) > 1:
                         return lib_dir / Path(*parts[1:]).with_suffix('.py')
                     else:
                         return lib_dir
                 else:
-                    # その他の絶対インポート（現在のディレクトリからの相対パスとして扱う）
+                    # まずlibディレクトリを探索
+                    lib_dir = self.workspace_root / 'contest' / 'lib'
+                    lib_path = lib_dir / Path(*parts).with_suffix('.py')
+                    if lib_path.exists():
+                        return lib_path
+                    
+                    # libディレクトリに見つからない場合は現在のディレクトリから探索
                     return current_file.parent / Path(*parts).with_suffix('.py')
         except Exception as e:
             if "test_missing_library" in str(current_file):

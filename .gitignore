@@ -4,3 +4,5 @@ contest/**
 !contest/template
 !contest/template/*
 .temp/*
+contest/lib/*
+.pytest_cache

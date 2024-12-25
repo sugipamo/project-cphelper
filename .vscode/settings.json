@@ -1,0 +1,8 @@
+{
+    "python.autoComplete.extraPaths": [
+        "./contest/lib"
+    ],
+    "python.analysis.extraPaths": [
+        "./contest/lib"
+    ]
+}

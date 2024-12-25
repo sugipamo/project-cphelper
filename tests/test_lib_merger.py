@@ -24,9 +24,13 @@ def main():
         assert "print(add(1, 2))" in result
 
     def test_merge_with_imports(self, tmp_path):
-        # ライブラリファイルを作成
-        lib_dir = tmp_path / "lib"
+        # コンテストディレクトリ構造を作成
+        contest_dir = tmp_path / "contest"
+        contest_dir.mkdir()
+        lib_dir = contest_dir / "lib"
         lib_dir.mkdir()
+        
+        # ライブラリファイルを作成
         lib_content = """def multiply(a, b):
     return a * b
 """
@@ -34,7 +38,7 @@ def main():
         lib_file.write_text(lib_content)
 
         # メインファイルを作成
-        main_content = """from lib.math_utils import multiply
+        main_content = """from math_utils import multiply
 
 def main():
     print(multiply(2, 3))
@@ -49,7 +53,7 @@ def main():
         assert "def multiply(a, b):" in result
         assert "def main():" in result
         assert "print(multiply(2, 3))" in result
-        assert "from lib.math_utils import multiply" not in result
+        assert "from math_utils import multiply" not in result
 
     def test_merge_with_relative_imports(self, tmp_path):
         # ディレクトリ構造を作成
@@ -88,9 +92,13 @@ def main():
         assert "from ...lib.math_utils import divide" not in result
 
     def test_merge_with_specific_imports(self, tmp_path):
-        # ライブラリファイルを作成（複数の関数を含む）
-        lib_dir = tmp_path / "lib"
+        # コンテストディレクトリ構造を作成
+        contest_dir = tmp_path / "contest"
+        contest_dir.mkdir()
+        lib_dir = contest_dir / "lib"
         lib_dir.mkdir()
+        
+        # ライブラリファイルを作成（複数の関数を含む）
         lib_content = """def add(a, b):
     return a + b
 
@@ -104,7 +112,7 @@ def multiply(a, b):
         lib_file.write_text(lib_content)
 
         # メインファイルを作成（特定の関数のみをインポート）
-        main_content = """from lib.math_utils import add, multiply
+        main_content = """from math_utils import add, multiply
 
 def main():
     print(add(1, 2))
@@ -151,11 +159,14 @@ def main():
             merge_libraries(main_file)
 
     def test_merge_with_circular_imports(self, tmp_path):
-        # 循環参照を含むファイルを作成
-        lib_dir = tmp_path / "lib"
+        # コンテストディレクトリ構造を作成
+        contest_dir = tmp_path / "contest"
+        contest_dir.mkdir()
+        lib_dir = contest_dir / "lib"
         lib_dir.mkdir()
 
-        file_a_content = """from .b import function_b
+        # 循環参照を含むファイルを作成
+        file_a_content = """from b import function_b
 
 def function_a():
     return function_b()
@@ -163,7 +174,7 @@ def function_a():
         file_a = lib_dir / "a.py"
         file_a.write_text(file_a_content)
 
-        file_b_content = """from .a import function_a
+        file_b_content = """from a import function_a
 
 def function_b():
     return function_a()
@@ -172,7 +183,7 @@ def function_b():
         file_b.write_text(file_b_content)
 
         # メインファイルを作成
-        main_content = """from lib.a import function_a
+        main_content = """from a import function_a
 
 def main():
     print(function_a())

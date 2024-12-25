@@ -14,6 +14,7 @@ class ImportResolver:
         self.processed_files: Set[Path] = set()
         self.imported_contents: Dict[str, str] = {}
         self.workspace_root = self._find_workspace_root(base_dir)
+        self.processed_imports: Set[str] = set()  # 処理済みのimport文を追跡
 
     def _find_workspace_root(self, start_path: Path) -> Path:
         """ワークスペースのルートディレクトリを探索"""
@@ -40,11 +41,20 @@ class ImportResolver:
             tree = ast.parse(content)
             imports = self._find_imports(tree)
             
+            # インポート情報を記録
+            for module_path, names in imports:
+                if names:
+                    # from import の場合
+                    self.processed_imports.add(f"from {module_path} import {', '.join(names)}")
+                else:
+                    # 通常のimportの場合
+                    self.processed_imports.add(f"import {module_path}")
+
             # 各importを解決
             resolved_contents = []
             imported_files = set()  # 処理済みのインポートファイルを追跡
             
-            def process_import(import_path: Path, names: Optional[List[str]] = None) -> None:
+            def process_import(import_path: Path) -> None:
                 """インポートを処理する内部関数"""
                 if str(import_path) in imported_files:
                     return
@@ -57,26 +67,24 @@ class ImportResolver:
                     import_tree = ast.parse(import_content)
                     
                     # インポートされたファイルの依存関係を先に処理
-                    for dep_module_path, dep_names in self._find_imports(import_tree):
+                    for dep_module_path, _ in self._find_imports(import_tree):
                         try:
                             dep_import_path = self._resolve_import_path(import_path, dep_module_path)
                             if dep_import_path and dep_import_path.exists():
-                                process_import(dep_import_path, dep_names)
+                                process_import(dep_import_path)
                         except Exception:
                             continue
                     
                     # インポートされたファイルの内容を処理
                     cleaned_content = self._remove_imports(import_content)
                     if cleaned_content.strip():
-                        if names:  # 特定の関数やクラスのみをインポート
-                            cleaned_content = self._extract_definitions(cleaned_content, names)
                         resolved_contents.append(cleaned_content)
                         self.imported_contents[str(import_path)] = cleaned_content
                 except Exception:
                     pass
             
             # メインファイルの依存関係を処理
-            for module_path, names in imports:
+            for module_path, _ in imports:
                 try:
                     import_path = self._resolve_import_path(file_path, module_path)
                     if import_path is None or not import_path.exists():
@@ -85,7 +93,7 @@ class ImportResolver:
                         continue
                     
                     # インポートを処理
-                    process_import(import_path, names)
+                    process_import(import_path)
                     
                 except FileNotFoundError as e:
                     if "test_missing_library" not in str(file_path):
@@ -98,7 +106,7 @@ class ImportResolver:
             if cleaned_content.strip():
                 resolved_contents.append(cleaned_content)
             
-            merged = '\n'.join(filter(None, resolved_contents))
+            merged = '\n\n'.join(filter(None, resolved_contents))
             self.imported_contents[str(file_path)] = merged
             return merged
             
@@ -175,37 +183,20 @@ class ImportResolver:
                 return None
             raise ImportError(f"インポートパスの解決に失敗しました: {module_path}\n{str(e)}")
 
-    def _extract_definitions(self, content: str, names: List[str]) -> str:
-        """指定された関数やクラスのコードを抽出"""
-        try:
-            tree = ast.parse(content)
-            extracted = []
-            
-            # 関数とクラスの定義を探す
-            for node in ast.walk(tree):
-                if (isinstance(node, (ast.FunctionDef, ast.ClassDef)) and 
-                    (not names or node.name in names)):
-                    # 定義の開始行と終了行を取得
-                    start_line = node.lineno
-                    end_line = node.end_lineno if hasattr(node, 'end_lineno') else start_line
-                    
-                    # コードを抽出
-                    lines = content.split('\n')
-                    def_code = '\n'.join(lines[start_line-1:end_line])
-                    extracted.append(def_code)
-            
-            return '\n\n'.join(extracted)
-        except Exception:
-            # パース失敗時は元のコードを返す
-            return content
-
     def _remove_imports(self, content: str) -> str:
-        """import文を除去"""
+        """
+        フージ対象となったimport文のみを削除し、その他のimport文は保持します。
+        """
         lines = []
         for line in content.split('\n'):
             stripped = line.strip()
-            if not stripped.startswith(('import ', 'from ')):
-                lines.append(line)
+            # import文かどうかをチェック
+            if stripped.startswith(('import ', 'from ')):
+                # この行が処理済みのimport文リストに含まれているかチェック
+                if not any(stripped.startswith(processed_import) for processed_import in self.processed_imports):
+                    lines.append(line)  # 処理済みでないimport文は保持
+            else:
+                lines.append(line)  # import文以外はそのまま保持
         return '\n'.join(lines)
 
 def merge_code(source_file: Path) -> str:
@@ -217,8 +208,19 @@ def merge_code(source_file: Path) -> str:
     merged_code = resolver.resolve_file(source_file)
     
     # 重複する空行を削除
-    merged_code = re.sub(r'\n\s*\n', '\n\n', merged_code)
-    return merged_code.strip() + '\n'
+    lines = merged_code.split('\n')
+    result = []
+    prev_was_empty = False
+    
+    for line in lines:
+        is_empty = not line.strip()
+        # 空行の重複を防ぐ
+        if not (is_empty and prev_was_empty):
+            result.append(line)
+        prev_was_empty = is_empty
+    
+    # 最後の改行を確実に追加
+    return '\n'.join(result).strip() + '\n'
 
 def merge_libraries(source_file: Path) -> str:
     """

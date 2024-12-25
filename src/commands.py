@@ -170,7 +170,7 @@ def test_solution(contest_id: str, problem_id: str, use_rust: bool = False):
         cmd = f"{interpreter} main.py"
 
     # ojコマンドをホストで実行し、実行コマンドとしてDockerを使用
-    test_cmd = f'{docker_base} {cmd}'
+    test_cmd = f'{docker_base} {config.TIMEOUT} {cmd}'
     try:
         # テストケースファイルの収集
         test_files = list(Path(test_dir).glob("*.in"))
@@ -260,7 +260,7 @@ def test_solution(contest_id: str, problem_id: str, use_rust: bool = False):
         return success
 
     except Exception as e:
-        print(f"\nError during test execution: {str(e)}")
+        print(f"Error running tests: {e}")
         return False
 
 def generate_testcases(contest_id: str, problem_id: str):

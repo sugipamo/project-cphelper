@@ -1,176 +1,187 @@
 import pytest
 from pathlib import Path
 import os
-from src.lib_merger import merge_libraries
+from src.lib_merger import merge_libraries, merge_code
 
 class TestLibMerger:
-    def test_basic_import(self, workspace):
-        """
-        基本的なライブラリインポートのテスト
-        """
-        os.chdir(workspace)
-        
-        # テスト用のディレクトリを作成
-        source_dir = workspace / "contest/abc123/a"
-        source_dir.mkdir(parents=True)
-        
-        lib_dir = workspace / "contest/lib"
-        lib_dir.mkdir(parents=True)
-        
-        # テスト用のライブラリファイルを作成
-        with open(lib_dir / "basic.py", "w") as f:
-            f.write("""
-def gcd(a: int, b: int) -> int:
-    return b if a % b == 0 else gcd(b, a % b)
-""")
-        
-        # テスト用のソースファイルを作成
-        source_file = source_dir / "a.py"
-        source_file.write_text("""
-from ..lib.basic import gcd
+    def test_merge_single_file(self, tmp_path):
+        # シンプルなPythonファイルを作成
+        source_content = """def add(a, b):
+    return a + b
 
-def solve():
-    print(gcd(10, 5))
-""")
-        
+def main():
+    print(add(1, 2))
+"""
+        source_file = tmp_path / "main.py"
+        source_file.write_text(source_content)
+
         # マージを実行
-        merged_code = merge_libraries(source_file)
-        
-        # マージ結果を確認
-        assert 'def gcd' in merged_code, "Should contain imported function"
-        assert 'from ..lib.basic import gcd' not in merged_code, "Should remove import statement"
-        assert 'def solve' in merged_code, "Should preserve original code"
+        result = merge_libraries(source_file)
 
-    def test_multiple_imports(self, workspace):
-        """
-        複数の関数をインポートするテスト
-        """
-        os.chdir(workspace)
-        
-        # テスト用のディレクトリを作成
-        source_dir = workspace / "contest/abc123/a"
-        source_dir.mkdir(parents=True)
-        
-        lib_dir = workspace / "contest/lib"
-        lib_dir.mkdir(parents=True)
-        
-        # テスト用のライブラリファイルを作成
-        with open(lib_dir / "basic.py", "w") as f:
-            f.write("""
-def gcd(a: int, b: int) -> int:
-    return b if a % b == 0 else gcd(b, a % b)
+        # 結果を検証
+        assert "def add(a, b):" in result
+        assert "def main():" in result
+        assert "print(add(1, 2))" in result
 
-def lcm(a: int, b: int) -> int:
-    return a * b // gcd(a, b)
-""")
-        
-        # テスト用のソースファイルを作成
-        source_file = source_dir / "a.py"
-        source_file.write_text("""
-from ..lib.basic import gcd, lcm
+    def test_merge_with_imports(self, tmp_path):
+        # ライブラリファイルを作成
+        lib_dir = tmp_path / "lib"
+        lib_dir.mkdir()
+        lib_content = """def multiply(a, b):
+    return a * b
+"""
+        lib_file = lib_dir / "math_utils.py"
+        lib_file.write_text(lib_content)
 
-def solve():
-    print(gcd(10, 5))
-    print(lcm(10, 5))
-""")
-        
+        # メインファイルを作成
+        main_content = """from lib.math_utils import multiply
+
+def main():
+    print(multiply(2, 3))
+"""
+        main_file = tmp_path / "main.py"
+        main_file.write_text(main_content)
+
         # マージを実行
-        merged_code = merge_libraries(source_file)
-        
-        # マージ結果を確認
-        assert 'def gcd' in merged_code, "Should contain first imported function"
-        assert 'def lcm' in merged_code, "Should contain second imported function"
-        assert 'from ..lib.basic import' not in merged_code, "Should remove import statement"
+        result = merge_libraries(main_file)
 
-    def test_recursive_imports(self, workspace):
-        """
-        再帰的なインポートのテスト
-        """
-        os.chdir(workspace)
-        
-        # テスト用のディレクトリを作成
-        source_dir = workspace / "contest/abc123/a"
-        source_dir.mkdir(parents=True)
-        
-        lib_dir = workspace / "contest/lib"
-        lib_dir.mkdir(parents=True)
-        
-        # テスト用のライブラリファイルを作成
-        with open(lib_dir / "basic.py", "w") as f:
-            f.write("""
-def gcd(a: int, b: int) -> int:
-    return b if a % b == 0 else gcd(b, a % b)
-""")
+        # 結果を検証
+        assert "def multiply(a, b):" in result
+        assert "def main():" in result
+        assert "print(multiply(2, 3))" in result
+        assert "from lib.math_utils import multiply" not in result
 
-        with open(lib_dir / "advanced.py", "w") as f:
-            f.write("""
-from .basic import gcd
-
-def lcm(a: int, b: int) -> int:
-    return a * b // gcd(a, b)
-""")
+    def test_merge_with_relative_imports(self, tmp_path):
+        # ディレクトリ構造を作成
+        contest_dir = tmp_path / "contest"
+        contest_dir.mkdir()
+        lib_dir = contest_dir / "lib"
+        lib_dir.mkdir()
         
-        # テスト用のソースファイルを作成
-        source_file = source_dir / "a.py"
-        source_file.write_text("""
-from ..lib.advanced import lcm
+        # ライブラリファイルを作成
+        lib_content = """def divide(a, b):
+    return a / b
+"""
+        lib_file = lib_dir / "math_utils.py"
+        lib_file.write_text(lib_content)
 
-def solve():
-    print(lcm(10, 5))
-""")
-        
+        # 問題ディレクトリを作成
+        problem_dir = contest_dir / "abc123" / "a"
+        problem_dir.mkdir(parents=True)
+
+        # メインファイルを作成（相対インポート使用）
+        main_content = """from ...lib.math_utils import divide
+
+def main():
+    print(divide(6, 2))
+"""
+        main_file = problem_dir / "main.py"
+        main_file.write_text(main_content)
+
         # マージを実行
-        merged_code = merge_libraries(source_file)
-        
-        # マージ結果を確認
-        assert 'def gcd' in merged_code, "Should contain base function"
-        assert 'def lcm' in merged_code, "Should contain imported function"
-        assert 'from .basic import gcd' not in merged_code, "Should remove all import statements"
-        assert 'from ..lib.advanced import lcm' not in merged_code, "Should remove all import statements"
+        result = merge_libraries(main_file)
 
-    def test_missing_library(self, workspace):
-        """
-        存在しないライブラリをインポートした場合のテスト
-        """
-        os.chdir(workspace)
-        
-        # テスト用のディレクトリを作成
-        source_dir = workspace / "contest/abc123/a"
-        source_dir.mkdir(parents=True)
-        
-        # テスト用のソースファイルを作成（存在しないライブラリを参照）
-        source_file = source_dir / "a.py"
-        source_file.write_text("""
-from ..lib.missing import function
+        # 結果を検証
+        assert "def divide(a, b):" in result
+        assert "def main():" in result
+        assert "print(divide(6, 2))" in result
+        assert "from ...lib.math_utils import divide" not in result
 
-def solve():
-    print(function(10))
-""")
-        
-        # マージを実行（エラーが発生することを確認）
-        with pytest.raises(FileNotFoundError, match=r".*インポートされたファイルが見つかりません.*"):
-            merge_libraries(source_file)
+    def test_merge_with_specific_imports(self, tmp_path):
+        # ライブラリファイルを作成（複数の関数を含む）
+        lib_dir = tmp_path / "lib"
+        lib_dir.mkdir()
+        lib_content = """def add(a, b):
+    return a + b
 
-    def test_syntax_error(self, workspace):
-        """
-        構文エラーがあるケースのテスト
-        """
-        os.chdir(workspace)
-        
-        # テスト用のディレクトリを作成
-        source_dir = workspace / "contest/abc123/a"
-        source_dir.mkdir(parents=True)
-        
-        # テスト用のソースファイルを作成（構文エラーを含む）
-        source_file = source_dir / "test_syntax_error.py"
-        source_file.write_text("""
-def main()  # コロンが抜けている
-    print("Hello")
+def subtract(a, b):
+    return a - b
 
-if __name__ == "__main__":
-    main()
-""")
-        
-        # マージを実行（元のコードが返されることを確認）
-        merged_code = merge_libraries(source_file)
-        assert 'def main()' in merged_code, "Should preserve original code with syntax error" 
+def multiply(a, b):
+    return a * b
+"""
+        lib_file = lib_dir / "math_utils.py"
+        lib_file.write_text(lib_content)
+
+        # メインファイルを作成（特定の関数のみをインポート）
+        main_content = """from lib.math_utils import add, multiply
+
+def main():
+    print(add(1, 2))
+    print(multiply(3, 4))
+"""
+        main_file = tmp_path / "main.py"
+        main_file.write_text(main_content)
+
+        # マージを実行
+        result = merge_libraries(main_file)
+
+        # 結果を検証
+        assert "def add(a, b):" in result
+        assert "def multiply(a, b):" in result
+        assert "def subtract(a, b):" not in result
+        assert "def main():" in result
+        assert "print(add(1, 2))" in result
+        assert "print(multiply(3, 4))" in result
+
+    def test_merge_with_missing_file(self, tmp_path):
+        # 存在しないファイルをインポートするメインファイルを作成
+        main_content = """from lib.missing_file import some_function
+
+def main():
+    print(some_function())
+"""
+        main_file = tmp_path / "main.py"
+        main_file.write_text(main_content)
+
+        # マージを実行（FileNotFoundErrorが発生することを確認）
+        with pytest.raises(FileNotFoundError):
+            merge_libraries(main_file)
+
+    def test_merge_with_syntax_error(self, tmp_path):
+        # 構文エラーを含むファイルを作成
+        main_content = """def invalid_function(
+    print("This is invalid syntax")
+"""
+        main_file = tmp_path / "main.py"
+        main_file.write_text(main_content)
+
+        # マージを実行（SyntaxErrorが発生することを確認）
+        with pytest.raises(SyntaxError):
+            merge_libraries(main_file)
+
+    def test_merge_with_circular_imports(self, tmp_path):
+        # 循環参照を含むファイルを作成
+        lib_dir = tmp_path / "lib"
+        lib_dir.mkdir()
+
+        file_a_content = """from .b import function_b
+
+def function_a():
+    return function_b()
+"""
+        file_a = lib_dir / "a.py"
+        file_a.write_text(file_a_content)
+
+        file_b_content = """from .a import function_a
+
+def function_b():
+    return function_a()
+"""
+        file_b = lib_dir / "b.py"
+        file_b.write_text(file_b_content)
+
+        # メインファイルを作成
+        main_content = """from lib.a import function_a
+
+def main():
+    print(function_a())
+"""
+        main_file = tmp_path / "main.py"
+        main_file.write_text(main_content)
+
+        # マージを実行（循環参照が適切に処理されることを確認）
+        result = merge_libraries(main_file)
+        assert "def function_a" in result
+        assert "def function_b" in result
+        assert "def main" in result

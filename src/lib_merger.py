@@ -68,8 +68,8 @@ class ImportResolver:
                     # インポートされたファイルの内容を処理
                     cleaned_content = self._remove_imports(import_content)
                     if cleaned_content.strip():
-                        if names:  # 特定の関数のみをインポート
-                            cleaned_content = self._extract_functions(cleaned_content, names)
+                        if names:  # 特定の関数やクラスのみをインポート
+                            cleaned_content = self._extract_definitions(cleaned_content, names)
                         resolved_contents.append(cleaned_content)
                         self.imported_contents[str(import_path)] = cleaned_content
                 except Exception:
@@ -175,23 +175,24 @@ class ImportResolver:
                 return None
             raise ImportError(f"インポートパスの解決に失敗しました: {module_path}\n{str(e)}")
 
-    def _extract_functions(self, content: str, function_names: List[str]) -> str:
-        """指定された関数のコードを抽出"""
+    def _extract_definitions(self, content: str, names: List[str]) -> str:
+        """指定された関数やクラスのコードを抽出"""
         try:
             tree = ast.parse(content)
             extracted = []
             
-            # 関数定義を探す
+            # 関数とクラスの定義を探す
             for node in ast.walk(tree):
-                if isinstance(node, ast.FunctionDef) and (not function_names or node.name in function_names):
-                    # 関数の開始行と終了行を取得
+                if (isinstance(node, (ast.FunctionDef, ast.ClassDef)) and 
+                    (not names or node.name in names)):
+                    # 定義の開始行と終了行を取得
                     start_line = node.lineno
                     end_line = node.end_lineno if hasattr(node, 'end_lineno') else start_line
                     
-                    # 関数のコードを抽出
+                    # コードを抽出
                     lines = content.split('\n')
-                    func_code = '\n'.join(lines[start_line-1:end_line])
-                    extracted.append(func_code)
+                    def_code = '\n'.join(lines[start_line-1:end_line])
+                    extracted.append(def_code)
             
             return '\n\n'.join(extracted)
         except Exception:

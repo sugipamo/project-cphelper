@@ -111,7 +111,10 @@ class Contest:
                         f.write(template.read())
                 else:
                     f.write("")
-        subprocess.call(f"code {self.source_path}", shell=True)
+        if "code" in os.environ["PATH"]:
+            subprocess.call(f"code {self.source_path}", shell=True)
+        else:
+            subprocess.call(f"cursor {self.source_path}", shell=True)
         
         if self.__interpreter == "rust":
             self.__change_cargoyaml()
@@ -267,6 +270,7 @@ class Contest:
 
         # subprocess.call(f"code {resultpath / "summary.txt"}", shell=True)
         webvis = Path(self.contest_resource_path) / "webvis"
+        # print("webvis", webvis, "result_path", result_path)
         if webvis.exists():
             with open(webvis, "r") as f:
                 webvisurl = f.read().split("\n")[0]
@@ -275,6 +279,7 @@ class Contest:
                 import urllib
                 webvisurl = webvisurl + "&output=" + urllib.parse.quote(f.read())
             
+            # print("webvisurl", webvisurl)
             webbrowser.open(webvisurl)
         
         
